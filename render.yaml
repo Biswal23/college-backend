@@ -1,0 +1,6 @@
+services:
+  - type: web
+    name: college-backend
+    env: python
+    buildCommand: ""
+    startCommand: "python app.py"
