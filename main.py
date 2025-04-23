@@ -1,17 +1,21 @@
 from flask import Flask, request, render_template, jsonify
 from flask_cors import CORS
 import sqlite3
+from flask import Flask
+from flask_sqlalchemy import SQLAlchemy
 
 app = Flask(__name__)
-CORS(app,
-     resources={
-         r"/api/*": {
-             "origins": [
-                 "https://karamcollegeinfo.com",
-                 "https://indian.karamcollegeinfo.com"
-             ]
-         }
-     })  # Replace with your Hostinger domain
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///college.db'
+db = SQLAlchemy(app)
+
+class College(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100))
+    state = db.Column(db.String(100))
+
+# Make sure to create the tables before the app starts
+with app.app_context():
+    db.create_all()
 
 
 # Function to load college data and reviews from SQLite
