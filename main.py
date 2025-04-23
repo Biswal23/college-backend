@@ -14,8 +14,10 @@ class College(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100))
     state = db.Column(db.String(100))
-
+import sys
+sys.path.append('../college/college_db')
 # Make sure to create the tables before the app starts
+from modules.college_db import db
 from college.db import db
 with app.app_context():
     db.create_all()
