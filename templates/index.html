@@ -1,1 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>College Information Filter</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 flex items-center justify-center min-h-screen">
+    <div class="bg-white p-8 rounded-lg shadow-lg w-full max-w-2xl">
+        <h1 class="text-2xl font-bold mb-6 text-center">College Information Filter</h1>
+        
+        <!-- Form -->
+        <div class="space-y-4">
+            <!-- Mandatory Fields -->
+            <div>
+                <label for="course_level" class="block text-sm font-medium text-gray-700">Course Level *</label>
+                <select id="course_level" class="mt-1 block w-full p-2 border border-gray-300 rounded-md" required>
+                    <option value="">Select Course Level</option>
+                    <option value="Undergraduate">Undergraduate</option>
+                    <option value="Postgraduate">Postgraduate</option>
+                </select>
+            </div>
+            <div>
+                <label for="state" class="block text-sm font-medium text-gray-700">State *</label>
+                <input type="text" id="state" list="state_suggestions" class="mt-1 block w-full p-2 border border-gray-300 rounded-md" placeholder="e.g., Maharashtra" required>
+                <datalist id="state_suggestions"></datalist>
+            </div>
+            
+            <!-- Optional Fields -->
+            <div>
+                <label for="location" class="block text-sm font-medium text-gray-700">Location</label>
+                <input type="text" id="location" list="location_suggestions" class="mt-1 block w-full p-2 border border-gray-300 rounded-md" placeholder="e.g., Mumbai">
+                <datalist id="location_suggestions"></datalist>
+            </div>
+            <div>
+                <label for="college_name" class="block text-sm font-medium text-gray-700">College Name</label>
+                <input type="text" id="college_name" list="college_name_suggestions" class="mt-1 block w-full p-2 border border-gray-300 rounded-md" placeholder="e.g., ABC Engineering">
+                <datalist id="college_name_suggestions"></datalist>
+            </div>
+            <div>
+                <label for="fees" class="block text-sm font-medium text-gray-700">Maximum Fees (₹)</label>
+                <input type="number" id="fees" class="mt-1 block w-full p-2 border border-gray-300 rounded-md" placeholder="e.g., 120000">
+            </div>
+            <div>
+                <label for="score" class="block text-sm font-medium text-gray-700">Student Score</label>
+                <input type="number" id="score" class="mt-1 block w-full p-2 border border-gray-300 rounded-md" placeholder="e.g., 85">
+            </div>
+            
+            <button onclick="searchColleges()" class="w-full bg-blue-600 text-white p-2 rounded-md hover:bg-blue-700">Search</button>
+        </div>
+        
+        <!-- Error Message -->
+        <p id="error" class="mt-4 text-red-600 hidden"></p>
+        
+        <!-- Results -->
+        <div id="results" class="mt-6 hidden">
+            <h2 class="text-xl font-semibold">Results</h2>
+            <ul id="results-list" class="mt-4 space-y-4"></ul>
+        </div>
+    </div>
 
+    <script>
+        // Update suggestions dynamically
+        async function updateSuggestions() {
+            const collegeName = document.getElementById("college_name").value;
+            const location = document.getElementById("location").value;
+            const state = document.getElementById("state").value;
+            const response = await fetch("https://CollegeFilter.yourusername.repl.co/api/search", {
+                method: "POST",
+                body: new URLSearchParams({
+                    course_level: document.getElementById("course_level").value || "Undergraduate",
+                    state: state,
+                    location: location,
+                    college_name: collegeName
+                })
+            });
+            const data = await response.json();
+            
+            // Update college name suggestions
+            const collegeDatalist = document.getElementById("college_name_suggestions");
+            collegeDatalist.innerHTML = data.suggestions.college_name.map(name => `<option value="${name}">`).join("");
+            
+            // Update location suggestions
+            const locationDatalist = document.getElementById("location_suggestions");
+            locationDatalist.innerHTML = data.suggestions.location.map(loc => `<option value="${loc}">`).join("");
+            
+            // Update state suggestions
+            const stateDatalist = document.getElementById("state_suggestions");
+            stateDatalist.innerHTML = data.suggestions.state.map(state => `<option value="${state}">`).join("");
+        }
+
+        // Search colleges
+        async function searchColleges() {
+            const courseLevel = document.getElementById("course_level").value;
+            const state = document.getElementById("state").value;
+            const location = document.getElementById("location").value;
+            const collegeName = document.getElementById("college_name").value;
+            const fees = document.getElementById("fees").value;
+            const score = document.getElementById("score").value;
+            
+            const errorDiv = document.getElementById("error");
+            const resultsDiv = document.getElementById("results");
+            const resultsList = document.getElementById("results-list");
+            
+            errorDiv.classList.add("hidden");
+            resultsDiv.classList.add("hidden");
+            resultsList.innerHTML = "";
+            
+            if (!courseLevel || !state) {
+                errorDiv.textContent = "Course level and state are required.";
+                errorDiv.classList.remove("hidden");
+                return;
+            }
+            
+            const response = await fetch("https://CollegeFilter.yourusername.repl.co/api/search", {
+                method: "POST",
+                body: new URLSearchParams({
+                    course_level: courseLevel,
+                    state: state,
+                    location: location,
+                    college_name: collegeName,
+                    fees: fees,
+                    score: score
+                })
+            });
+            
+            const data = await response.json();
+            
+            if (data.error) {
+                errorDiv.textContent = data.error;
+                errorDiv.classList.remove("hidden");
+                return;
+            }
+            
+            if (data.results.length === 0) {
+                errorDiv.textContent = "No colleges found.";
+                errorDiv.classList.remove("hidden");
+                return;
+            }
+            
+            data.results.forEach(college => {
+                const li = document.createElement("li");
+                li.className = "p-4 bg-gray-50 rounded-md";
+                let reviewsHtml = college.reviews.length > 0
+                    ? `<p><strong>Reviews:</strong></p><ul class="list-disc pl-5">` +
+                      college.reviews.map(r => `<li>${r.review_text} (Rating: ${r.rating}/5)</li>`).join("") +
+                      `</ul>`
+                    : `<p>No reviews available.</p>`;
+                li.innerHTML = `
+                    <h3 class="font-bold">${college.name}</h3>
+                    <p>Course Level: ${college.course_level}</p>
+                    <p>State: ${college.state}</p>
+                    <p>Location: ${college.location}</p>
+                    <p>Fees: ₹${college.fees}</p>
+                    <p>Minimum Score: ${college.min_score}</p>
+                    ${reviewsHtml}
+                `;
+                resultsList.appendChild(li);
+            });
+            
+            resultsDiv.classList.remove("hidden");
+            
+            // Update suggestions
+            updateSuggestions();
+        }
+
+        // Bind suggestion updates to input events
+        document.getElementById("college_name").addEventListener("input", updateSuggestions);
+        document.getElementById("location").addEventListener("input", updateSuggestions);
+        document.getElementById("state").addEventListener("input", updateSuggestions);
+    </script>
+</body>
+</html>
