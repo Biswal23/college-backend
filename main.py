@@ -1,8 +1,10 @@
 from flask import Flask, request, render_template, jsonify
 from flask_cors import CORS
 import sqlite3
-from flask import Flask
+
 from flask_sqlalchemy import SQLAlchemy
+from college.db import db  # adjust as per your structure
+db.create_all()
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///college.db'
@@ -14,6 +16,7 @@ class College(db.Model):
     state = db.Column(db.String(100))
 
 # Make sure to create the tables before the app starts
+from college.db import db
 with app.app_context():
     db.create_all()
 
