@@ -6,9 +6,22 @@ from flask_sqlalchemy import SQLAlchemy
 from college.db import db  # adjust as per your structure
 db.create_all()
 
+from college_db import db
+
+# Example: Query the database
+cursor = db.cursor()
+cursor.execute("SELECT * FROM some_table")
+results = cursor.fetchall()
+print(results)
+
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///college.db'
 db = SQLAlchemy(app)
+
+cursor = db.cursor()
+cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
+tables = cursor.fetchall()
+print(tables)  # Lists all tables in the database
 
 class College(db.Model):
     id = db.Column(db.Integer, primary_key=True)
