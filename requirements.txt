@@ -3,3 +3,5 @@ gunicorn
 flask-cors
 Flask-SQLAlchemy
 sqlalchemy
+fastapi
+uvicorn[standard]
