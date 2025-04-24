@@ -7,6 +7,14 @@ from college.college_db import db  # adjust as per your structure
 from fastapi import FastAPI
 from college.college_db import db, Base, engine
 from sqlalchemy import Column, Integer, String
+from database import SessionLocal
+
+db = SessionLocal()
+try:
+    # use db here
+    pass
+finally:
+    db.close()
 
 app = FastAPI()
 
