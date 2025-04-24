@@ -5,7 +5,7 @@ import sqlite3
 from flask_sqlalchemy import SQLAlchemy
 from college.college_db import db  # adjust as per your structure
 from fastapi import FastAPI
-from app.database.college_db import db, Base, engine
+from college.college_db import db, Base, engine
 from sqlalchemy import Column, Integer, String
 
 app = FastAPI()
@@ -58,7 +58,7 @@ sys.path.append('../college/college_db')
 # Make sure to create the tables before the app starts
 from modules.college_db import db
 from college.db import db
-with app.app_context():
+with college.college_context():
     db.create_all()
 from fastapi import FastAPI
 from college.college_db import db
