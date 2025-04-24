@@ -34,7 +34,17 @@ from modules.college_db import db
 from college.db import db
 with app.app_context():
     db.create_all()
+from fastapi import FastAPI
+from college.college_db import db
 
+app = FastAPI()
+
+@app.get("/")
+async def root():
+    cursor = db.cursor()
+    cursor.execute("SELECT sqlite_version()")
+    version = cursor.fetchone()
+    return {"message": f"SQLite version: {version[0]}"}
 
 # Function to load college data and reviews from SQLite
 def load_college_data():
