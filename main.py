@@ -9,12 +9,6 @@ from college.college_db import db, Base, engine
 from sqlalchemy import Column, Integer, String
 from database import SessionLocal
 
-db = SessionLocal()
-try:
-    # use db here
-    pass
-finally:
-    db.close()
 
 app = FastAPI()
 
@@ -322,6 +316,12 @@ def submit_review():
         return jsonify({"message": "Review submitted successfully"})
     except sqlite3.Error as e:
         return jsonify({"error": f"Database error: {str(e)}"}), 500
+db = SessionLocal()
+try:
+    # use db here
+    pass
+finally:
+    db.close()
 
 
 if __name__ == '__main__':
