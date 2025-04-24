@@ -35,7 +35,21 @@ async def root():
         return {"message": "Student added successfully"}
     finally:
         db_session.close()
+# main.py
+from fastapi import FastAPI
+from database import SessionLocal  # Import SessionLocal
 
+app = FastAPI()
+
+# Example route
+@app.get("/")
+def read_root():
+    db = SessionLocal()  # Use SessionLocal to create a session
+    try:
+        # Perform database operations
+        return {"message": "Success"}
+    finally:
+        db.close()  # Always close the session
 from college_db import db
 
 # Example: Query the database
