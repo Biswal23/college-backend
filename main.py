@@ -3,7 +3,7 @@ from flask_cors import CORS
 import sqlite3
 
 from flask_sqlalchemy import SQLAlchemy
-from app.college.college_db import db  # adjust as per your structure
+from college.college_db import db  # adjust as per your structure
 db.create_all()
 
 from college_db import db
