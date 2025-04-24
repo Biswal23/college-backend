@@ -1,10 +1,15 @@
-# database.py
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, declarative_base
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker
 
-DATABASE_URL = "sqlite:///./college.db"  # or your PostgreSQL/MySQL URL
+# Replace with your database URL
+DATABASE_URL = "your_database_url_here"
 
-engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+# Create the SQLAlchemy engine
+engine = create_engine "sqlite:///./college.db"
+
+# Create a configured "Session" class
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
+# Create a base class for your models
 Base = declarative_base()
