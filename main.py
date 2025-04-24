@@ -4,7 +4,33 @@ import sqlite3
 
 from flask_sqlalchemy import SQLAlchemy
 from college.college_db import db  # adjust as per your structure
-db.create_all()
+from fastapi import FastAPI
+from app.database.college_db import db, Base, engine
+from sqlalchemy import Column, Integer, String
+
+app = FastAPI()
+
+# Define a sample model (e.g., a Student table)
+class Student(Base):
+    __tablename__ = "students"
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, index=True)
+
+# Create the tables in the database
+Base.metadata.create_all(bind=engine)
+
+@app.get("/")
+async def root():
+    # Example: Create a new database session
+    db_session = db()
+    try:
+        # Example: Add a new student
+        new_student = Student(name="John Doe")
+        db_session.add(new_student)
+        db_session.commit()
+        return {"message": "Student added successfully"}
+    finally:
+        db_session.close()
 
 from college_db import db
 
