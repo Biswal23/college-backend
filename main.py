@@ -8,6 +8,8 @@ from fastapi import FastAPI
 from college.college_db import db, Base, engine
 from sqlalchemy import Column, Integer, String
 from database import SessionLocal
+print(SessionLocal)  # Should print something like <class 'sqlalchemy.orm.session.sessionmaker'>
+db = SessionLocal()
 
 
 app = FastAPI()
