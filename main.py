@@ -35,7 +35,8 @@ async def root():
 from college_db import db
 
 # Example: Query the database
-cursor = db.cursor()
+db = SessionLocal()
+cursor = db.cursor()  # ❌ this will throw the error
 cursor.execute("SELECT * FROM some_table")
 results = cursor.fetchall()
 print(results)
