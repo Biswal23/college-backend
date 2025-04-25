@@ -9,11 +9,18 @@ from typing import List, Dict
 
 app = FastAPI()
 
-# Initialize templates (if using web UI)
+# Initialize templates
 templates = Jinja2Templates(directory="templates")
 
 # Create database tables
 Base.metadata.create_all(bind=engine)
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
 
 def load_college_data() -> List[Dict]:
     db = SessionLocal()
@@ -66,12 +73,9 @@ async def index(request: Request):
         "location": locations,
         "state": states
     }
-    return templates.render_template(
+    return templates.TemplateResponse(
         "index.html",
-        request=request,
-        results=[],
-        suggestions=suggestions,
-        error=None
+        {"request": request, "results": [], "suggestions": suggestions, "error": None}
     )
 
 @app.post("/", response_class=HTMLResponse)
@@ -134,14 +138,11 @@ async def index_post(
         if location:
             suggestions["location"] = [l for l in locations if location.lower() in l.lower()]
         if state:
-            suggestions["state"] = [s for l in states if state.lower() in s.lower()]
+            suggestions["state"] = [s for s in states if state.lower() in s.lower()]
 
-    return templates.render_template(
+    return templates.TemplateResponse(
         "index.html",
-        request=request,
-        results=results,
-        suggestions=suggestions,
-        error=error
+        {"request": request, "results": results, "suggestions": suggestions, "error": error}
     )
 
 @app.post("/api/search")
