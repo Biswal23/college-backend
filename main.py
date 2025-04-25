@@ -6,6 +6,7 @@ from database import SessionLocal, engine, Base
 from models import College, Review
 from sqlalchemy.sql import text
 from typing import List, Dict
+import os
 
 app = FastAPI()
 
@@ -14,13 +15,6 @@ templates = Jinja2Templates(directory="templates")
 
 # Create database tables
 Base.metadata.create_all(bind=engine)
-
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
 
 def load_college_data() -> List[Dict]:
     db = SessionLocal()
