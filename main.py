@@ -7,7 +7,14 @@ from models import College, Review
 from sqlalchemy.sql import text
 from typing import List, Dict
 import os
+from database import Base, engine
 
+# Create tables (add this near the top of your main.py)
+def initialize_database():
+    Base.metadata.create_all(bind=engine)
+
+# Call this function when starting your app
+initialize_database()
 app = FastAPI()
 
 # Initialize templates
