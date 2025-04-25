@@ -1,7 +1,6 @@
-Flask
-gunicorn
-flask-cors
-Flask-SQLAlchemy
-sqlalchemy
 fastapi
-uvicorn[standard]
+uvicorn
+sqlalchemy
+jinja2
+python-multipart
+gunicorn
