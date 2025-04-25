@@ -3,20 +3,21 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 import os
 
-# Default SQLite URL for development
-SQLITE_DB_URL = "sqlite:///./college.db"
+# For Render PostgreSQL
+DATABASE_URL = os.getenv("DATABASE_URL")
 
-# Get DATABASE_URL from environment variables or use SQLite as fallback
-DATABASE_URL = os.environ.get("DATABASE_URL", SQLITE_DB_URL)
+# For local SQLite development
+if not DATABASE_URL:
+    DATABASE_URL = "sqlite:///./college.db"
 
-# Handle Render's PostgreSQL URL format
+# Fix for Render's PostgreSQL URL
 if DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
 engine = create_engine(
     DATABASE_URL,
     pool_pre_ping=True,
-    connect_args={"check_same_thread": False} if DATABASE_URL == SQLITE_DB_URL else {}
+    connect_args={"check_same_thread": False} if "sqlite" in DATABASE_URL else {}
 )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
