@@ -6,7 +6,6 @@ from database import SessionLocal, engine, Base
 from models import College, Review
 from sqlalchemy.sql import text
 from typing import List, Dict
-import sqlite3
 
 app = FastAPI()
 
@@ -135,7 +134,7 @@ async def index_post(
         if location:
             suggestions["location"] = [l for l in locations if location.lower() in l.lower()]
         if state:
-            suggestions["state"] = [s for s in states if state.lower() in s.lower()]
+            suggestions["state"] = [s for l in states if state.lower() in s.lower()]
 
     return templates.render_template(
         "index.html",
@@ -176,10 +175,10 @@ async def search(
             pass
     if score:
         try:
-        min_score = float(score)
-        filtered = [c for c in filtered if c["min_score"] <= min_score]
-    except ValueError:
-        pass
+            min_score = float(score)
+            filtered = [c for c in filtered if c["min_score"] <= min_score]
+        except ValueError:
+            pass
     # Deduplicate results
     seen = set()
     results = [
