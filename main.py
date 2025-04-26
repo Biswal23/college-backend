@@ -7,6 +7,41 @@ from sqlalchemy.sql import text
 from typing import List, Dict, Optional
 import os
 
+
+from fastapi.staticfiles import StaticFiles
+
+
+
+# Initialize FastAPI
+
+app = FastAPI()
+
+# Mount static files
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
+# Initialize templates
+templates = Jinja2Templates(directory="templates")
+
+# Create database tables (with error handling)
+try:
+    Base.metadata.create_all(bind=engine)
+    print("Database tables created successfully")
+except Exception as e:
+    print(f"Error creating database tables: {e}")
+
+# Your existing route handlers...
+
+
+
+
+# Add health check endpoint
+@app.get("/health")
+async def health_check():
+    return {"status": "healthy"}
+
+# Only run this if executed directly (not when imported)
+
+
 app = FastAPI()
 templates = Jinja2Templates(directory="templates")
 
@@ -90,8 +125,12 @@ def get_suggestions(colleges: List[Dict], query: str, field: str) -> List[str]:
             suggestions.add(college[field])
     return sorted(suggestions)
 
+# Your existing route handlers...
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
+    # Your existing index implementation
+
+
     colleges = load_college_data()
     locations = sorted(set(c["location"] for c in colleges if c["location"]))
     college_names = sorted(set(c["name"] for c in colleges if c["name"]))
@@ -111,9 +150,8 @@ async def index(request: Request):
             "suggestions": suggestions,
             "error": None,
             "form_data": {}
-        }
+        }  pass
     )
-
 @app.post("/", response_class=HTMLResponse)
 async def index_post(
     request: Request,
@@ -124,6 +162,7 @@ async def index_post(
     fees: str = Form(default=""),
     score: str = Form(default="")
 ):
+
     colleges = load_college_data()
     error = None
     results = []
@@ -151,7 +190,7 @@ async def index_post(
                 },
                 "error": error,
                 "form_data": form_data
-            }
+            } pass
         )
 
     # Apply state mapping
@@ -231,6 +270,4 @@ async def index_post(
         }
     )
 
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+
