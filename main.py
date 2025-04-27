@@ -10,10 +10,11 @@ import os
 # At the top with other imports
 from initial_data import initialize_database
 
+# Initialize FastAPI app
+app = FastAPI()
+
 # Right after creating FastAPI app
 initialize_database()  # This will create tables and add sample data if empty
-# Initialize FastAPI
-app = FastAPI()
 
 # Only mount static files if directory exists
 if os.path.exists("static"):
@@ -205,6 +206,15 @@ async def index_post(
     finally:
         db.close()
 
+# Health check route
 @app.get("/health")
 async def health_check():
     return {"status": "healthy"}
+
+# API route to list all colleges
+@app.get("/api/colleges")
+def list_colleges():
+    db = SessionLocal()
+    colleges = db.query(College).all()
+    db.close()
+    return colleges
