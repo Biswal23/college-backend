@@ -3,202 +3,180 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>College Information Filter</title>
+    <title>College Predictor Form</title>
+
     <style>
         body {
             font-family: Arial, sans-serif;
-            background-color: #f4f4f4;
-            margin: 0;
-            padding: 20px;
-            display: flex;
-            justify-content: center;
+            background-color: #f9f9f9;
+            margin: 20px;
         }
-        .container {
-            background: white;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-            width: 100%;
-            max-width: 600px;
+
+        form {
+            background-color: #fff;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            max-width: 900px;
+            margin: 0 auto;
         }
+
+        .form-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+        }
+
         .form-group {
-            margin-bottom: 15px;
+            display: flex;
+            flex-direction: column;
         }
+
         label {
-            display: block;
-            margin-bottom: 5px;
             font-weight: bold;
+            margin-bottom: 5px;
         }
-        input, select {
-            width: 100%;
-            padding: 8px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
+
+        select, input[type="text"], input[type="number"] {
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            font-size: 1rem;
         }
+
         button {
+            margin-top: 20px;
+            padding: 14px;
+            font-size: 1rem;
             background-color: #007BFF;
             color: white;
-            padding: 10px;
             border: none;
-            border-radius: 4px;
+            border-radius: 5px;
             cursor: pointer;
             width: 100%;
+            transition: background-color 0.3s;
         }
+
         button:hover {
             background-color: #0056b3;
         }
-        #results {
-            margin-top: 20px;
-        }
-        .result-item {
-            border: 1px solid #ddd;
-            padding: 10px;
-            margin-bottom: 10px;
-            border-radius: 4px;
-        }
-        #error {
+
+        .error-message {
             color: red;
-            margin-top: 10px;
+            margin-top: 15px;
+            text-align: center;
         }
-        datalist {
-            display: none; /* Hide default datalist, we'll handle suggestions manually */
+
+        h2 {
+            margin-top: 40px;
+            text-align: center;
+            color: #333;
         }
-        .suggestions {
+
+        .result-card {
+            background: #fff;
             border: 1px solid #ddd;
-            border-top: none;
-            max-height: 150px;
-            overflow-y: auto;
-            position: absolute;
-            background: white;
-            width: 100%;
-            z-index: 10;
-            display: none;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px auto;
+            max-width: 800px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
         }
-        .suggestion-item {
-            padding: 5px;
-            cursor: pointer;
+
+        .result-card h3 {
+            margin-bottom: 10px;
+            color: #007BFF;
         }
-        .suggestion-item:hover {
-            background-color: #f0f0f0;
+
+        .result-card p {
+            margin: 5px 0;
+            color: #555;
         }
     </style>
 </head>
+
 <body>
-    <div class="container">
-        <h2>College Information Filter</h2>
-        <form id="filterForm" method="POST" action="filter.php">
-            <div class="form-group">
-                <label for="course_level">Course Level *</label>
-                <select name="course_level" id="course_level" required>
-                    <option value="">Select Course Level</option>
-                    <option value="Undergraduate">Undergraduate</option>
-                    <option value="Postgraduate">Postgraduate</option>
-                </select>
-            </div>
-            <div class="form-group" style="position: relative;">
-                <label for="state">State *</label>
-                <input type="text" name="state" id="state" required placeholder="e.g., Tamil Nadu" oninput="fetchSuggestions('state')">
-                <div id="state-suggestions" class="suggestions"></div>
-            </div>
-            <div class="form-group" style="position: relative;">
-                <label for="location">Location</label>
-                <input type="text" name="location" id="location" placeholder="e.g., Chennai" oninput="fetchSuggestions('location')">
-                <div id="location-suggestions" class="suggestions"></div>
-            </div>
-            <div class="form-group" style="position: relative;">
-                <label for="college_name">College Name</label>
-                <input type="text" name="college_name" id="college_name" placeholder="e.g., Techno College" oninput="fetchSuggestions('college_name')">
-                <div id="college-name-suggestions" class="suggestions"></div>
-            </div>
-            <div class="form-group">
-                <label for="fees">Maximum Fees (₹)</label>
-                <input type="number" name="fees" id="fees" placeholder="e.g., 180000">
-            </div>
-            <div class="form-group">
-                <label for="score">Score</label>
-                <input type="number" name="score" id="score" placeholder="e.g., 500">
-            </div>
-            <button type="submit">Search</button>
-        </form>
-        <div id="error"></div>
-        <div id="results"></div>
+
+<form method="post">
+    <div class="form-container">
+        <div class="form-group">
+            <label for="course_level">Course Level *</label>
+            <select name="course_level" id="course_level" required>
+                <option value="">Select Course Level</option>
+                <option value="Undergraduate" {% if form_data.course_level == "Undergraduate" %}selected{% endif %}>Undergraduate</option>
+                <option value="Postgraduate" {% if form_data.course_level == "Postgraduate" %}selected{% endif %}>Postgraduate</option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label for="state">State *</label>
+            <select name="state" id="state" required>
+                <option value="">Select State</option>
+                {% for state in suggestions.state %}
+                    <option value="{{ state }}" {% if form_data.state == state %}selected{% endif %}>{{ state }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label for="location">Location</label>
+            <select name="location" id="location">
+                <option value="">Select Location</option>
+                {% for loc in suggestions.location %}
+                    <option value="{{ loc }}" {% if form_data.location == loc %}selected{% endif %}>{{ loc }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label for="college_name">College Name</label>
+            <select name="college_name" id="college_name">
+                <option value="">Select College</option>
+                {% for name in suggestions.college_name %}
+                    <option value="{{ name }}" {% if form_data.college_name == name %}selected{% endif %}>{{ name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label for="fees">Maximum Fees (₹)</label>
+            <input type="text" name="fees" id="fees" value="{{ form_data.fees or '' }}" placeholder="e.g., 180000">
+        </div>
+
+        <div class="form-group">
+            <label for="score">Score</label>
+            <input type="text" name="score" id="score" value="{{ form_data.score or '' }}" placeholder="e.g., 500">
+        </div>
     </div>
 
-    <script>
-        function fetchSuggestions(field) {
-            const input = document.getElementById(field).value.toLowerCase();
-            const suggestionDiv = document.getElementById(`${field}-suggestions`);
-            suggestionDiv.innerHTML = '';
-            suggestionDiv.style.display = 'none';
+    <button type="submit">Search Colleges</button>
+</form>
 
-            if (input.length < 1) return;
+{% if error %}
+    <p class="error-message">{{ error }}</p>
+{% endif %}
 
-            fetch(`suggestions.php?field=${field}&query=${encodeURIComponent(input)}`)
-                .then(response => response.json())
-                .then(data => {
-                    if (data[field] && data[field].length > 0) {
-                        data[field].forEach(item => {
-                            const div = document.createElement('div');
-                            div.className = 'suggestion-item';
-                            div.textContent = item;
-                            div.onclick = () => {
-                                document.getElementById(field).value = item;
-                                suggestionDiv.style.display = 'none';
-                            };
-                            suggestionDiv.appendChild(div);
-                        });
-                        suggestionDiv.style.display = 'block';
-                    }
-                })
-                .catch(error => console.error('Error fetching suggestions:', error));
-        }
+{% if results %}
+    <h2>Matching Colleges</h2>
+    {% for result in results %}
+        <div class="result-card">
+            <h3>{{ result.name }}</h3>
+            <p><strong>State:</strong> {{ result.state }}</p>
+            <p><strong>Location:</strong> {{ result.location }}</p>
+            <p><strong>Course Level:</strong> {{ result.course_level }}</p>
+            <p><strong>Minimum Score:</strong> {{ result.min_score }}</p>
+            <p><strong>Fees:</strong> ₹{{ result.fees }}</p>
+            <p><strong>Average Rating:</strong> {{ result.avg_rating }}</p>
+            
+            {% if result.reviews %}
+                <h4>Reviews:</h4>
+                {% for review in result.reviews %}
+                    <p><strong>Rating:</strong> {{ review.rating }} - {{ review.review_text }}</p>
+                {% endfor %}
+            {% endif %}
+        </div>
+    {% endfor %}
+{% endif %}
 
-        document.querySelectorAll('input').forEach(input => {
-            input.addEventListener('blur', () => {
-                setTimeout(() => {
-                    document.querySelectorAll('.suggestions').forEach(s => s.style.display = 'none');
-                }, 200);
-            });
-        });
-
-        document.getElementById('filterForm').addEventListener('submit', function(e) {
-            e.preventDefault();
-            fetch('filter.php', {
-                method: 'POST',
-                body: new FormData(this)
-            })
-            .then(response => response.json())
-            .then(data => {
-                const resultsDiv = document.getElementById('results');
-                const errorDiv = document.getElementById('error');
-                resultsDiv.innerHTML = '';
-                errorDiv.textContent = '';
-
-                if (data.error) {
-                    errorDiv.textContent = data.error;
-                } else if (data.results.length === 0) {
-                    errorDiv.textContent = 'No colleges found.';
-                } else {
-                    data.results.forEach(college => {
-                        const div = document.createElement('div');
-                        div.className = 'result-item';
-                        div.innerHTML = `
-                            <h3>${college.name}</h3>
-                            <p>Course Level: ${college.course_level}</p>
-                            <p>State: ${college.state}</p>
-                            <p>Location: ${college.location}</p>
-                            <p>Fees: ₹${college.fees}</p>
-                            <p>Score Range: ${college.min_score || 'N/A'} - ${college.max_score || 'N/A'}</p>
-                        `;
-                        resultsDiv.appendChild(div);
-                    });
-                }
-            })
-            .catch(error => {
-                document.getElementById('error').textContent = 'Error fetching data.';
-                console.error('Error:', error);
-            });
-        });
-    </script>
 </body>
 </html>
