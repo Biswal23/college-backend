@@ -49,35 +49,33 @@ async def index(request: Request):
     db = SessionLocal()
     try:
         colleges = db.query(College).all()
-        print(f"GET /: Found {len(colleges)} colleges in database")  # Debug print
+        print(f"GET /: Found {len(colleges)} colleges in database")
+        if not colleges:
+            print("GET /: Warning: No colleges found in database!")
+        else:
+            print(f"GET /: Colleges: {[c.name for c in colleges]}")
+
         suggestions = {
             "college_name": sorted([c.name for c in colleges], key=str.lower),
             "location": sorted([c.location for c in colleges if c.location], key=str.lower),
             "state": sorted([c.state for c in colleges if c.state], key=str.lower)
         }
-        print(f"GET /: Initial suggestions: {suggestions}")  # Debug print
-        if not suggestions["college_name"]:
-            print("Warning: No college names found for suggestions!")
-        if not suggestions["state"]:
-            print("Warning: No states found for suggestions!")
-        if not suggestions["location"]:
-            print("Warning: No locations found for suggestions!")
+        print(f"GET /: Initial suggestions: {suggestions}")
     except Exception as e:
         print(f"❌ GET /: Error loading suggestions: {e}")
         suggestions = {"college_name": [], "location": [], "state": []}
     finally:
         db.close()
 
-    return templates.TemplateResponse(
-        "index.html",
-        {
-            "request": request,
-            "results": [],
-            "suggestions": suggestions,
-            "error": None,
-            "form_data": {}
-        }
-    )
+    context = {
+        "request": request,
+        "results": [],
+        "suggestions": suggestions,
+        "error": None,
+        "form_data": {}
+    }
+    print(f"GET /: Context passed to template: {context}")
+    return templates.TemplateResponse("index.html", context)
 
 @app.post("/", response_class=HTMLResponse)
 async def index_post(
@@ -104,7 +102,7 @@ async def index_post(
         college_name_lower = college_name.lower()
         if college_name_lower in COLLEGE_MAPPINGS:
             college_name = COLLEGE_MAPPINGS[college_name_lower]
-        print(f"POST /: Inputs - course_level: {course_level}, state: {state}, location: {location}, college_name: {college_name}, fees: {fees}, score: {score}")  # Debug print
+        print(f"POST /: Inputs - course_level: {course_level}, state: {state}, location: {location}, college_name: {college_name}, fees: {fees}, score: {score}")
 
         # Base query
         query = db.query(College).filter(
@@ -140,14 +138,14 @@ async def index_post(
                 print(f"POST /: Invalid score input: {score}")
 
         colleges = query.all()
-        print(f"POST /: Query results count: {len(colleges)}")  # Debug print
+        print(f"POST /: Query results count: {len(colleges)}")
 
         # If no optional filters, show all for the mandatory course_level
         if not any([state, location, college_name, fees, score]):
             colleges = db.query(College).filter(
                 College.course_level == ("UG" if course_level.lower() == "undergraduate" else "PG")
             ).all()
-            print(f"POST /: All colleges for {course_level}: {len(colleges)}")  # Debug print
+            print(f"POST /: All colleges for {course_level}: {len(colleges)}")
 
         # Format results
         results = []
@@ -166,26 +164,19 @@ async def index_post(
             })
 
         # Generate suggestions with prefix matching
+        # Use all colleges for suggestions, not filtered ones, to ensure dropdowns always have options
         all_colleges = db.query(College).all()
         existing_college_names = [c.name for c in all_colleges]
         existing_locations = [c.location for c in all_colleges if c.location]
         existing_states = [c.state for c in all_colleges if c.state]
 
+        # Always show all available options in dropdowns, not filtered by prefix
         suggestions = {
-            "college_name": sorted(
-                [c.name for c in all_colleges if not college_name or c.name.lower().startswith(college_name.lower())],
-                key=str.lower
-            ),
-            "location": sorted(
-                [c.location for c in all_colleges if c.location and (not location or c.location.lower().startswith(location.lower()))],
-                key=str.lower
-            ),
-            "state": sorted(
-                [c.state for c in all_colleges if c.state and (not state or c.state.lower().startswith(state.lower()))],
-                key=str.lower
-            )
+            "college_name": sorted(existing_college_names, key=str.lower),
+            "location": sorted(existing_locations, key=str.lower),
+            "state": sorted(existing_states, key=str.lower)
         }
-        print(f"POST /: Generated suggestions: {suggestions}")  # Debug print
+        print(f"POST /: Generated suggestions: {suggestions}")
 
         # Check for invalid inputs and provide specific error messages
         error_message = None
@@ -199,23 +190,22 @@ async def index_post(
             else:
                 error_message = "No colleges found matching your criteria."
 
-        return templates.TemplateResponse(
-            "index.html",
-            {
-                "request": request,
-                "results": sorted(results, key=lambda x: (-x["avg_rating"], x["fees"])),
-                "suggestions": suggestions,
-                "error": error_message,
-                "form_data": {
-                    "course_level": course_level,
-                    "state": state,
-                    "location": location,
-                    "college_name": college_name,
-                    "fees": fees,
-                    "score": score
-                }
+        context = {
+            "request": request,
+            "results": sorted(results, key=lambda x: (-x["avg_rating"], x["fees"])),
+            "suggestions": suggestions,
+            "error": error_message,
+            "form_data": {
+                "course_level": course_level,
+                "state": state,
+                "location": location,
+                "college_name": college_name,
+                "fees": fees,
+                "score": score
             }
-        )
+        }
+        print(f"POST /: Context passed to template: {context}")
+        return templates.TemplateResponse("index.html", context)
 
     except Exception as e:
         print(f"❌ POST /: Search error: {e}")
