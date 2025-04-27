@@ -7,6 +7,11 @@ from models import College, Review
 from typing import List, Dict, Optional
 import os
 
+# At the top with other imports
+from initial_data import initialize_database
+
+# Right after creating FastAPI app
+initialize_database()  # This will create tables and add sample data if empty
 # Initialize FastAPI
 app = FastAPI()
 
