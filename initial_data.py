@@ -1,5 +1,8 @@
+from sqlalchemy import create_engine
+from models import Base, College, Review
+
 from database import SessionLocal, engine, Base
-from models import College, Review
+
 
 def initialize_database():
     """Create database tables and insert sample college data if empty."""
