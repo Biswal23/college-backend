@@ -67,6 +67,7 @@ def reset_database():
         print(f"❌ Error resetting database: {e}")
 
 if __name__ == "__main__":
+    initialize_database()
     # Choose what you want to do:
     # initialize_database()
     # add_sample_reviews()
