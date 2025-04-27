@@ -13,10 +13,10 @@ from initial_data import initialize_database
 # Initialize FastAPI app
 app = FastAPI()
 
-# Right after creating FastAPI app
-initialize_database()  # This will create tables and add sample data if empty
+# Initialize database
+initialize_database()
 
-# Only mount static files if directory exists
+# Mount static files if directory exists
 if os.path.exists("static"):
     app.mount("/static", StaticFiles(directory="static"), name="static")
 
@@ -60,9 +60,9 @@ async def index(request: Request):
     try:
         colleges = db.query(College).all()
         suggestions = {
-            "college_name": sorted(set(c.name for c in colleges)),
-            "location": sorted(set(c.location for c in colleges if c.location)),
-            "state": sorted(set(c.state for c in colleges if c.state))
+            "college_name": sorted(set(c.name for c in colleges), key=str.lower),
+            "location": sorted(set(c.location for c in colleges if c.location), key=str.lower),
+            "state": sorted(set(c.state for c in colleges if c.state), key=str.lower)
         }
     except Exception as e:
         print(f"❌ Error loading suggestions: {e}")
@@ -85,24 +85,24 @@ async def index(request: Request):
 async def index_post(
     request: Request,
     course_level: str = Form(...),
-    state: str = Form(default=""),
-    location: str = Form(default=""),
-    college_name: str = Form(default=""),
-    fees: str = Form(default=""),
-    score: str = Form(default="")
+    state: Optional[str] = Form(default=""),
+    location: Optional[str] = Form(default=""),
+    college_name: Optional[str] = Form(default=""),
+    fees: Optional[str] = Form(default=""),
+    score: Optional[str] = Form(default="")
 ):
     db = SessionLocal()
     try:
         # Validation
-        if not course_level or not state:
-            raise HTTPException(status_code=400, detail="Course level and state are required.")
+        if not course_level:
+            raise HTTPException(status_code=400, detail="Course level is required.")
 
         # Apply mappings
-        state_lower = state.lower()
+        state_lower = state.lower() if state else ""
         if state_lower in STATE_MAPPINGS:
             state = STATE_MAPPINGS[state_lower]
 
-        location_lower = location.lower()
+        location_lower = location.lower() if location else ""
         if location_lower in LOCATION_MAPPINGS:
             location = LOCATION_MAPPINGS[location_lower]
 
@@ -111,13 +111,13 @@ async def index_post(
             College.course_level == ("UG" if course_level.lower() == "undergraduate" else "PG")
         )
 
-        # Filters
+        # Filters with case-insensitive prefix matching
         if state:
-            query = query.filter(College.state.ilike(f"%{state}%"))
+            query = query.filter(College.state.ilike(f"{state}%"))
         if location:
-            query = query.filter(College.location.ilike(f"%{location}%"))
+            query = query.filter(College.location.ilike(f"{location}%"))
         if college_name:
-            query = query.filter(College.name.ilike(f"%{college_name}%"))
+            query = query.filter(College.name.ilike(f"{college_name}%"))
         if fees:
             try:
                 fees_value = float(fees)
@@ -141,6 +141,12 @@ async def index_post(
 
         colleges = query.all()
 
+        # If no optional filters are provided, show all colleges for the mandatory course_level
+        if not any([state, location, college_name, fees, score]):
+            colleges = db.query(College).filter(
+                College.course_level == ("UG" if course_level.lower() == "undergraduate" else "PG")
+            ).all()
+
         # Format results
         results = []
         for college in colleges:
@@ -158,12 +164,21 @@ async def index_post(
                 "reviews": [{"review_text": r.review_text, "rating": r.rating} for r in reviews[:2]]
             })
 
-        # Suggestions for the form dropdowns
+        # Suggestions with prefix matching
         all_colleges = db.query(College).all()
         suggestions = {
-            "college_name": sorted(set(c.name for c in all_colleges)),
-            "location": sorted(set(c.location for c in all_colleges if c.location)),
-            "state": sorted(set(c.state for c in all_colleges if c.state))
+            "college_name": sorted(
+                [c.name for c in all_colleges if not college_name or c.name.lower().startswith(college_name.lower())],
+                key=str.lower
+            ),
+            "location": sorted(
+                [c.location for c in all_colleges if c.location and (not location or c.location.lower().startswith(location.lower()))],
+                key=str.lower
+            ),
+            "state": sorted(
+                [c.state for c in all_colleges if c.state and (not state or c.state.lower().startswith(state.lower()))],
+                key=str.lower
+            )
         }
 
         return templates.TemplateResponse(
@@ -201,6 +216,96 @@ async def index_post(
                     "fees": fees,
                     "score": score
                 }
+            }
+        )
+    finally:
+        db.close()
+
+# Manual entry for adding a new college
+@app.post("/add_college", response_class=HTMLResponse)
+async def add_college(
+    request: Request,
+    name: str = Form(...),
+    state: str = Form(...),
+    location: str = Form(...),
+    course_level: str = Form(...),
+    fees: float = Form(...),
+    cutoff: float = Form(...),
+    review_text: Optional[str] = Form(default=""),
+    rating: Optional[int] = Form(default=None)
+):
+    db = SessionLocal()
+    try:
+        # Validate inputs
+        if not all([name, state, location, course_level, fees, cutoff]):
+            raise HTTPException(status_code=400, detail="All fields except review and rating are required.")
+        
+        if course_level.lower() not in ["undergraduate", "postgraduate"]:
+            raise HTTPException(status_code=400, detail="Course level must be Undergraduate or Postgraduate.")
+        
+        if fees < 0:
+            raise HTTPException(status_code=400, detail="Fees cannot be negative.")
+        
+        if cutoff < 0:
+            raise HTTPException(status_code=400, detail="Cutoff score cannot be negative.")
+        
+        if rating and (rating < 1 or rating > 5):
+            raise HTTPException(status_code=400, detail="Rating must be between 1 and 5.")
+
+        # Check if college already exists
+        existing_college = db.query(College).filter(College.name == name).first()
+        if existing_college:
+            raise HTTPException(status_code=400, detail="College with this name already exists.")
+
+        # Create new college
+        new_college = College(
+            name=name,
+            state=state,
+            location=location,
+            course_level="UG" if course_level.lower() == "undergraduate" else "PG",
+            fees=fees,
+            cutoff=cutoff
+        )
+        db.add(new_college)
+        db.commit()
+        db.refresh(new_college)
+
+        # Add review if provided
+        if review_text and rating:
+            new_review = Review(
+                college_name=name,
+                review_text=review_text,
+                rating=rating
+            )
+            db.add(new_review)
+            db.commit()
+
+        return templates.TemplateResponse(
+            "index.html",
+            {
+                "request": request,
+                "results": [],
+                "suggestions": {
+                    "college_name": sorted(set(c.name for c in db.query(College).all()), key=str.lower),
+                    "location": sorted(set(c.location for c in db.query(College).all() if c.location), key=str.lower),
+                    "state": sorted(set(c.state for c in db.query(College).all() if c.state), key=str.lower)
+                },
+                "error": None,
+                "form_data": {},
+                "success_message": f"College {name} added successfully!"
+            }
+        )
+
+    except Exception as e:
+        print(f"❌ Error adding college: {e}")
+        return templates.TemplateResponse(
+            "index.html",
+            {
+                "request": request,
+                "results": [],
+                "suggestions": {"college_name": [], "location": [], "state": []},
+                "error": f"Error adding college: {str(e)}",
+                "form_data": {}
             }
         )
     finally:
