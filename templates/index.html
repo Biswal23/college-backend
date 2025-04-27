@@ -1,77 +1,288 @@
-<!-- Inside your form -->
-<input type="hidden" name="form_data" value="{{ form_data|tojson }}">
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>College Finder</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .college-card {
+            transition: all 0.3s ease;
+        }
+        .college-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+        }
+        .rating-stars {
+            color: #fbbf24;
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <div class="container mx-auto px-4 py-8">
+        <div class="max-w-4xl mx-auto">
+            <h1 class="text-3xl font-bold text-center text-blue-800 mb-8">College Finder</h1>
+            
+            <!-- Search Form -->
+            <div class="bg-white rounded-lg shadow-md p-6 mb-8">
+                <form id="searchForm" class="space-y-4">
+                    <!-- Hidden Form Data -->
+                    <input type="hidden" name="form_data" value="{{ form_data|tojson }}">
 
-<!-- Updated Results Section -->
-<div id="results" class="mt-6 {% if not results %}hidden{% endif %}">
-    <div class="flex justify-between items-center mb-4">
-        <h2 class="text-2xl font-semibold text-gray-800">Search Results</h2>
-        <p id="resultCount" class="text-gray-600">
-            {% if results %}
-                {{ results|length }} colleges found
-            {% endif %}
-        </p>
-    </div>
-
-    {% if error %}
-        <div class="p-3 bg-red-100 text-red-700 rounded-md mb-4">{{ error }}</div>
-    {% endif %}
-
-    <ul id="resultsContainer" class="space-y-4">
-        {% for college in results %}
-        <li class="college-card bg-white rounded-lg shadow-md p-6">
-            <div class="flex justify-between items-start">
-                <div>
-                    <h3 class="text-xl font-bold text-blue-800">{{ college.name }}</h3>
-                    <div class="flex items-center mt-1">
-                        <span class="rating-stars">
-                            {% for i in range(1, 6) %}
-                                {% if i <= college.avg_rating|round(0, 'floor') %}
-                                    ★
-                                {% else %}
-                                    ☆
-                                {% endif %}
-                            {% endfor %}
-                        </span>
-                        <span class="ml-2 text-sm text-gray-600">({{ "%.1f"|format(college.avg_rating) }})</span>
+                    <!-- Error Message -->
+                    <div id="error" class="hidden p-3 bg-red-100 text-red-700 rounded-md"></div>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <!-- Mandatory Fields -->
+                        <div>
+                            <label for="course_level" class="block text-sm font-medium text-gray-700 mb-1">Course Level *</label>
+                            <select id="course_level" name="course_level" class="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" required>
+                                <option value="">Select Course Level</option>
+                                <option value="Undergraduate">Undergraduate</option>
+                                <option value="Postgraduate">Postgraduate</option>
+                            </select>
+                        </div>
+                        
+                        <div>
+                            <label for="state" class="block text-sm font-medium text-gray-700 mb-1">State *</label>
+                            <input type="text" id="state" name="state" list="state_suggestions" 
+                                   class="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" 
+                                   placeholder="e.g., Uttar Pradesh" required
+                                   oninput="updateSuggestions('state')">
+                            <datalist id="state_suggestions"></datalist>
+                        </div>
                     </div>
-                </div>
-                <span class="bg-blue-100 text-blue-800 text-sm font-medium px-2.5 py-0.5 rounded">
-                    {{ college.course_level }}
-                </span>
+                    
+                    <!-- Other form fields remain the same -->
+                    
+                    <div class="pt-2">
+                        <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md transition duration-200">
+                            Search Colleges
+                        </button>
+                    </div>
+                </form>
             </div>
-
-            <div class="mt-3 grid grid-cols-2 gap-2">
-                <div>
-                    <p class="text-sm text-gray-600">Location</p>
-                    <p>{{ college.location }}, {{ college.state }}</p>
-                </div>
-                <div>
-                    <p class="text-sm text-gray-600">Fees</p>
-                    <p>₹{{ "{:,.2f}".format(college.fees) }}</p>
-                </div>
-                <div>
-                    <p class="text-sm text-gray-600">Minimum Score</p>
-                    <p>{{ college.min_score }}</p>
-                </div>
-            </div>
-
-            {% if college.reviews %}
-            <div class="mt-4">
-                <h4 class="font-medium text-gray-800">Recent Reviews</h4>
-                <ul class="list-disc pl-5 mt-2 space-y-2">
-                    {% for review in college.reviews %}
-                    <li class="text-sm text-gray-700">
-                        "{{ review.review_text }}" 
-                        <span class="text-yellow-500">
-                            {{ '★' * review.rating|round(0, 'floor') }}{{ '☆' * (5 - review.rating|round(0, 'floor')) }}
-                        </span>
-                        ({{ review.rating }}/5)
+            
+            <!-- Results Section -->
+            <div id="results" class="mt-6 {% if not results %}hidden{% endif %}">
+                <h2 class="text-xl font-semibold">Results</h2>
+                {% if error %}
+                    <p class="mt-2 text-red-600">{{ error }}</p>
+                {% endif %}
+                <ul class="mt-4 space-y-4">
+                    {% for college in results %}
+                    <li class="p-4 bg-white rounded-lg shadow">
+                        <h3 class="font-bold text-lg">{{ college.name }}</h3>
+                        <p class="text-gray-600">{{ college.location }}, {{ college.state }}</p>
+                        <p>Course Level: {{ college.course_level }}</p>
+                        <p>Fees: ₹{{ "{:,.2f}".format(college.fees) }}</p>
+                        <p>Minimum Score: {{ college.min_score }}</p>
+                        <p>Average Rating: {{ "%.1f"|format(college.avg_rating) }}/5</p>
+                        
+                        {% if college.reviews %}
+                        <div class="mt-2">
+                            <h4 class="font-medium">Recent Reviews:</h4>
+                            <ul class="list-disc pl-5 mt-1">
+                                {% for review in college.reviews %}
+                                <li>"{{ review.review_text }}" ({{ review.rating }}/5)</li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                        {% endif %}
                     </li>
                     {% endfor %}
                 </ul>
             </div>
-            {% endif %}
-        </li>
-        {% endfor %}
-    </ul>
-</div>
+        </div>
+    </div>
+
+    <script>
+        // Handle form submission
+        document.getElementById('searchForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            await searchColleges();
+        });
+
+        // Update suggestions dynamically
+        async function updateSuggestions(field) {
+            const inputValue = document.getElementById(field).value.toLowerCase();
+            if (inputValue.length < 2) return;
+
+            try {
+                const response = await fetch('/api/search', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: new URLSearchParams({
+                        course_level: document.getElementById('course_level').value || '',
+                        state: document.getElementById('state').value || '',
+                        location: document.getElementById('location').value || '',
+                        college_name: document.getElementById('college_name').value || ''
+                    })
+                });
+                
+                const data = await response.json();
+                const datalist = document.getElementById(${field}_suggestions);
+                datalist.innerHTML = '';
+                
+                // Apply smart mappings for state and location
+                if (field === 'state') {
+                    const smartMappings = {
+                        'utt': 'Uttar Pradesh',
+                        'up': 'Uttar Pradesh',
+                        'mh': 'Maharashtra',
+                        'kar': 'Karnataka',
+                        'tn': 'Tamil Nadu'
+                    };
+                    
+                    if (smartMappings[inputValue]) {
+                        const option = document.createElement('option');
+                        option.value = smartMappings[inputValue];
+                        datalist.appendChild(option);
+                    }
+                }
+                
+                if (field === 'location') {
+                    const smartMappings = {
+                        'mu': 'Mumbai',
+                        'che': 'Chennai',
+                        'ban': 'Bangalore',
+                        'hyd': 'Hyderabad',
+                        'del': 'Delhi'
+                    };
+                    
+                    if (smartMappings[inputValue]) {
+                        const option = document.createElement('option');
+                        option.value = smartMappings[inputValue];
+                        datalist.appendChild(option);
+                    }
+                }
+                
+                // Add all suggestions from the server
+                data.suggestions[field].forEach(item => {
+                    const option = document.createElement('option');
+                    option.value = item;
+                    datalist.appendChild(option);
+                });
+            } catch (error) {
+                console.error('Error fetching suggestions:', error);
+            }
+        }
+
+        // Search colleges
+        async function searchColleges() {
+            const formData = new FormData(document.getElementById('searchForm'));
+            const errorDiv = document.getElementById('error');
+            const resultsDiv = document.getElementById('results');
+            const resultsContainer = document.getElementById('resultsContainer');
+            const resultCount = document.getElementById('resultCount');
+            
+            errorDiv.classList.add('hidden');
+            resultsDiv.classList.add('hidden');
+            resultsContainer.innerHTML = '';
+            
+            // Validate mandatory fields
+            if (!formData.get('course_level') || !formData.get('state')) {
+                errorDiv.textContent = 'Course level and state are required fields.';
+                errorDiv.classList.remove('hidden');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: new URLSearchParams(formData)
+                });
+                
+                const text = await response.text();
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(text, 'text/html');
+                const results = JSON.parse(doc.getElementById('results-data').textContent);
+                const suggestions = JSON.parse(doc.getElementById('suggestions-data').textContent);
+                
+                if (results.error) {
+                    errorDiv.textContent = results.error;
+                    errorDiv.classList.remove('hidden');
+                    return;
+                }
+                
+                if (results.length === 0) {
+                    errorDiv.textContent = 'No colleges found matching your criteria.';
+                    errorDiv.classList.remove('hidden');
+                    return;
+                }
+                
+                // Display results
+                resultCount.textContent = `${results.length} colleges found`;
+                results.forEach(college => {
+                    const collegeCard = document.createElement('div');
+                    collegeCard.className = 'college-card bg-white rounded-lg shadow-md p-6';
+                    
+                    // Calculate star rating
+                    const stars = Math.round(college.avg_rating);
+                    let starsHtml = '';
+                    for (let i = 0; i < 5; i++) {
+                        starsHtml += i < stars ? '★' : '☆';
+                    }
+                    
+                    collegeCard.innerHTML = 
+                        `<div class="flex justify-between items-start">
+                            <div>
+                                <h3 class="text-xl font-bold text-blue-800">${college.name}</h3>
+                                <div class="flex items-center mt-1">
+                                    <span class="rating-stars">${starsHtml}</span>
+                                    <span class="ml-2 text-sm text-gray-600">(${college.avg_rating.toFixed(1)})</span>
+                                </div>
+                            </div>
+                            <span class="bg-blue-100 text-blue-800 text-sm font-medium px-2.5 py-0.5 rounded">
+                                ${college.course_level}
+                            </span>
+                        </div>
+                        
+                        <div class="mt-3 grid grid-cols-2 gap-2">
+                            <div>
+                                <p class="text-sm text-gray-600">Location</p>
+                                <p>${college.location}, ${college.state}</p>
+                            </div>
+                            <div>
+                                <p class="text-sm text-gray-600">Fees</p>
+                                <p>₹${college.fees.toLocaleString()}</p>
+                            </div>
+                            <div>
+                                <p class="text-sm text-gray-600">Minimum Score</p>
+                                <p>${college.min_score}</p>
+                            </div>
+                        </div>
+                        
+                        ${college.reviews.length > 0 ? 
+                        `<div class="mt-4">
+                            <h4 class="font-medium text-gray-800">Recent Reviews</h4>
+                            <ul class="mt-2 space-y-2">
+                                ${college.reviews.slice(0, 2).map(review => 
+                                `<li class="text-sm text-gray-700">
+                                    <p>"${review.review_text}"</p>
+                                    <p class="text-yellow-500">${'★'.repeat(Math.round(review.rating))}${'☆'.repeat(5 - Math.round(review.rating))}</p>
+                                </li>`).join('')}
+                            </ul>
+                        </div>` 
+                        : ''}
+                    `;
+                    
+                    resultsContainer.appendChild(collegeCard);
+                });
+                
+                resultsDiv.classList.remove('hidden');
+                
+            } catch (error) {
+                console.error('Error searching colleges:', error);
+                errorDiv.textContent = 'An error occurred while searching. Please try again.';
+                errorDiv.classList.remove('hidden');
+            }
+        }
+    </script>
+</body>
+</html>
