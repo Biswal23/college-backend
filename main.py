@@ -159,30 +159,20 @@ async def index_post(
                 "reviews": [{"review_text": r.review_text, "rating": r.rating} for r in reviews]
             })
 
-        # Suggestions
+        # Suggestions: Always include all available options
         all_colleges = db.query(College).all()
-        existing_college_names = [c.name for c in all_colleges]
-        existing_locations = [c.location for c in all_colleges if c.location]
-        existing_states = [c.state for c in all_colleges if c.state]
-
         suggestions = {
-            "college_name": sorted(
-                [c.name for c in all_colleges if not college_name or college_name.lower() in c.name.lower()],
-                key=str.lower
-            ),
-            "location": sorted(
-                [c.location for c in all_colleges if c.location and (not location or location.lower() in c.location.lower())],
-                key=str.lower
-            ),
-            "state": sorted(
-                [c.state for c in all_colleges if c.state and (not state or state.lower() in c.state.lower())],
-                key=str.lower
-            )
+            "college_name": sorted(set(c.name for c in all_colleges if c.name), key=str.lower),
+            "location": sorted(set(c.location for c in all_colleges if c.location), key=str.lower),
+            "state": sorted(set(c.state for c in all_colleges if c.state), key=str.lower)
         }
 
         # Smart error messages
         error_message = None
         if not results:
+            existing_college_names = [c.name for c in all_colleges]
+            existing_locations = [c.location for c in all_colleges if c.location]
+            existing_states = [c.state for c in all_colleges if c.state]
             if state and state not in existing_states:
                 error_message = f"No colleges found for state '{state}'."
             elif location and location not in existing_locations:
@@ -303,21 +293,12 @@ async def search(
                 "reviews": [{"review_text": r.review_text, "rating": r.rating} for r in reviews]
             })
 
-        # Suggestions
+        # Suggestions: Always include all available options
         all_colleges = db.query(College).all()
         suggestions = {
-            "college_name": sorted(
-                set(c.name for c in all_colleges if c.name and (not college_name or college_name.lower() in c.name.lower())),
-                key=str.lower
-            ),
-            "location": sorted(
-                set(c.location for c in all_colleges if c.location and (not location or location.lower() in c.location.lower())),
-                key=str.lower
-            ),
-            "state": sorted(
-                set(c.state for c in all_colleges if c.state and (not state or state.lower() in c.state.lower())),
-                key=str.lower
-            )
+            "college_name": sorted(set(c.name for c in all_colleges if c.name), key=str.lower),
+            "location": sorted(set(c.location for c in all_colleges if c.location), key=str.lower),
+            "state": sorted(set(c.state for c in all_colleges if c.state), key=str.lower)
         }
 
         return {"results": results, "suggestions": suggestions}
