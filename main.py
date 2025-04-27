@@ -23,6 +23,7 @@ templates = Jinja2Templates(directory="templates")
 
 # Create database tables
 try:
+    Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
     print("✅ Database tables created successfully")
 except Exception as e:
