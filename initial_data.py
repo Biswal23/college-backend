@@ -72,4 +72,4 @@ if __name__ == "__main__":
     # initialize_database()
     # add_sample_reviews()
 
-    reset_database()  # Reset everything and add fresh data
+    #reset_database()  # Reset everything and add fresh data
