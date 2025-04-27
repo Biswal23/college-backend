@@ -1,19 +1,14 @@
-from fastapi import FastAPI, Form, HTTPException, Request
+from fastapi import FastAPI, Request, Form, HTTPException
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
+from fastapi.staticfiles import StaticFiles
 from database import SessionLocal, engine, Base
 from models import College, Review
 from sqlalchemy.sql import text
 from typing import List, Dict, Optional
 import os
 
-
-from fastapi.staticfiles import StaticFiles
-
-
-
 # Initialize FastAPI
-
 app = FastAPI()
 
 # Mount static files
@@ -29,26 +24,7 @@ try:
 except Exception as e:
     print(f"Error creating database tables: {e}")
 
-# Your existing route handlers...
-
-
-
-
-# Add health check endpoint
-@app.get("/health")
-async def health_check():
-    return {"status": "healthy"}
-
-# Only run this if executed directly (not when imported)
-
-
-app = FastAPI()
-templates = Jinja2Templates(directory="templates")
-
-# Create database tables
-Base.metadata.create_all(bind=engine)
-
-# State and location mappings for suggestions
+# State and location mappings
 STATE_MAPPINGS = {
     "utt": "Uttar Pradesh",
     "up": "Uttar Pradesh",
@@ -125,23 +101,20 @@ def get_suggestions(colleges: List[Dict], query: str, field: str) -> List[str]:
             suggestions.add(college[field])
     return sorted(suggestions)
 
-# Your existing route handlers...
+# Route: GET "/"
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
-    # Your existing index implementation
-
-
     colleges = load_college_data()
     locations = sorted(set(c["location"] for c in colleges if c["location"]))
     college_names = sorted(set(c["name"] for c in colleges if c["name"]))
     states = sorted(set(c["state"] for c in colleges if c["state"]))
-    
+
     suggestions = {
         "college_name": college_names,
         "location": locations,
         "state": states
     }
-    
+
     return templates.TemplateResponse(
         "index.html",
         {
@@ -150,8 +123,10 @@ async def index(request: Request):
             "suggestions": suggestions,
             "error": None,
             "form_data": {}
-        }  pass
+        }
     )
+
+# Route: POST "/"
 @app.post("/", response_class=HTMLResponse)
 async def index_post(
     request: Request,
@@ -162,7 +137,6 @@ async def index_post(
     fees: str = Form(default=""),
     score: str = Form(default="")
 ):
-
     colleges = load_college_data()
     error = None
     results = []
@@ -175,7 +149,6 @@ async def index_post(
         "score": score
     }
 
-    # Validate mandatory fields
     if not course_level or not state:
         error = "Course level and state are required fields."
         return templates.TemplateResponse(
@@ -190,15 +163,14 @@ async def index_post(
                 },
                 "error": error,
                 "form_data": form_data
-            } pass
+            }
         )
 
-    # Apply state mapping
+    # Apply mappings
     state_lower = state.lower()
     if state_lower in STATE_MAPPINGS:
         state = STATE_MAPPINGS[state_lower]
 
-    # Apply location mapping
     location_lower = location.lower()
     if location_lower in LOCATION_MAPPINGS:
         location = LOCATION_MAPPINGS[location_lower]
@@ -210,49 +182,39 @@ async def index_post(
         and c["state"].lower() == state.lower()
     ]
 
-    # Apply location filter if provided
     if location:
         filtered = [c for c in filtered if location.lower() in c["location"].lower()]
-
-    # Apply college name filter if provided
     if college_name:
         filtered = [c for c in filtered if college_name.lower() in c["name"].lower()]
-
-    # Apply fees range filter if provided
     if fees:
         try:
             fees_value = float(fees)
-            # Define fee ranges (e.g., 180000 → 100000-200000)
             lower_fee = (fees_value // 100000) * 100000
             upper_fee = lower_fee + 100000
             filtered = [c for c in filtered if lower_fee <= c["fees"] <= upper_fee]
         except ValueError:
-            pass  # Ignore invalid fee inputs
-
-    # Apply score range filter if provided
+            pass
     if score:
         try:
             score_value = float(score)
-            # Define score ranges (e.g., 1001 → 1000-10000)
             if score_value < 1000:
                 lower_score = 0
                 upper_score = 1000
             else:
                 lower_score = (score_value // 1000) * 1000
-                upper_score = lower_score + 9000  # Creates a 1000-10000 range
+                upper_score = lower_score + 9000
             filtered = [c for c in filtered if lower_score <= c["min_score"] <= upper_score]
         except ValueError:
-            pass  # Ignore invalid score inputs
+            pass
 
-    # Deduplicate results
+    # Deduplicate and sort
     seen = set()
     results = [
         x for x in filtered
         if not ((x["name"], x["state"], x["location"]) in seen
-        or seen.add((x["name"], x["state"], x["location"]))
+        or seen.add((x["name"], x["state"], x["location"])))
     ]
 
-    # Sort results by rating (higher first) then by fees (lower first)
     results.sort(key=lambda x: (-x["avg_rating"], x["fees"]))
 
     return templates.TemplateResponse(
@@ -270,4 +232,10 @@ async def index_post(
         }
     )
 
+# Health check endpoint
+@app.get("/health")
+async def health_check():
+    return {"status": "healthy"}
+
+# Run if directly executed
 
