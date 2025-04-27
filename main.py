@@ -49,9 +49,9 @@ async def index(request: Request):
     try:
         colleges = db.query(College).all()
         suggestions = {
-            "college_name": sorted([c.name for c in colleges], key=str.lower),
-            "location": sorted([c.location for c in colleges if c.location], key=str.lower),
-            "state": sorted([c.state for c in colleges if c.state], key=str.lower)
+            "college_name": sorted(set(c.name for c in colleges if c.name), key=str.lower),
+            "location": sorted(set(c.location for c in colleges if c.location), key=str.lower),
+            "state": sorted(set(c.state for c in colleges if c.state), key=str.lower)
         }
     except Exception as e:
         print(f"❌ Error loading suggestions: {e}")
@@ -134,9 +134,18 @@ async def index_post(
                 College.course_level == ("UG" if course_level.lower() == "undergraduate" else "PG")
             ).all()
 
+        # Deduplicate colleges by name, state, location, course_level
+        seen = set()
+        deduplicated_colleges = []
+        for college in colleges:
+            key = (college.name, college.state, college.location, college.course_level)
+            if key not in seen:
+                seen.add(key)
+                deduplicated_colleges.append(college)
+
         # Format results
         results = []
-        for college in colleges:
+        for college in deduplicated_colleges:
             reviews = db.query(Review).filter(Review.college_name == college.name).all()
             avg_rating = sum(r.rating for r in reviews) / len(reviews) if reviews else 0
             results.append({
@@ -147,7 +156,7 @@ async def index_post(
                 "min_score": college.cutoff,
                 "fees": college.fees,
                 "avg_rating": avg_rating,
-                "reviews": [{"review_text": r.review_text, "rating": r.rating} for r in reviews[:2]]
+                "reviews": [{"review_text": r.review_text, "rating": r.rating} for r in reviews]
             })
 
         # Suggestions
@@ -158,15 +167,15 @@ async def index_post(
 
         suggestions = {
             "college_name": sorted(
-                [c.name for c in all_colleges if not college_name or c.name.lower().startswith(college_name.lower())],
+                [c.name for c in all_colleges if not college_name or college_name.lower() in c.name.lower()],
                 key=str.lower
             ),
             "location": sorted(
-                [c.location for c in all_colleges if c.location and (not location or c.location.lower().startswith(location.lower()))],
+                [c.location for c in all_colleges if c.location and (not location or location.lower() in c.location.lower())],
                 key=str.lower
             ),
             "state": sorted(
-                [c.state for c in all_colleges if c.state and (not state or c.state.lower().startswith(state.lower()))],
+                [c.state for c in all_colleges if c.state and (not state or state.lower() in c.state.lower())],
                 key=str.lower
             )
         }
@@ -220,6 +229,142 @@ async def index_post(
                 }
             }
         )
+    finally:
+        db.close()
+
+@app.post("/api/search")
+async def search(
+    course_level: str = Form(...),
+    state: Optional[str] = Form(default=""),
+    location: Optional[str] = Form(default=""),
+    college_name: Optional[str] = Form(default=""),
+    fees: Optional[str] = Form(default=""),
+    score: Optional[str] = Form(default="")
+):
+    db = SessionLocal()
+    try:
+        if not course_level or not state:
+            return {"error": "Course level and state are required"}, 400
+
+        # Normalize inputs
+        state = state.strip()
+        location = location.strip()
+        college_name = college_name.strip()
+
+        # Apply college name mapping
+        if college_name.lower() in COLLEGE_MAPPINGS:
+            college_name = COLLEGE_MAPPINGS[college_name.lower()]
+
+        query = db.query(College).filter(
+            College.course_level == ("UG" if course_level.lower() == "undergraduate" else "PG"),
+            College.state.ilike(f"{state}%")
+        )
+
+        # Filters
+        if location:
+            query = query.filter(College.location.ilike(f"{location}%"))
+        if college_name:
+            query = query.filter(College.name.ilike(f"{college_name}%"))
+        if fees:
+            try:
+                max_fees = float(fees)
+                query = query.filter(College.fees <= max_fees)
+            except ValueError:
+                pass
+        if score:
+            try:
+                min_score = float(score)
+                query = query.filter(College.cutoff <= min_score)
+            except ValueError:
+                pass
+
+        colleges = query.all()
+
+        # Deduplicate colleges by name, state, location, course_level
+        seen = set()
+        deduplicated_colleges = []
+        for college in colleges:
+            key = (college.name, college.state, college.location, college.course_level)
+            if key not in seen:
+                seen.add(key)
+                deduplicated_colleges.append(college)
+
+        # Format results
+        results = []
+        for college in deduplicated_colleges:
+            reviews = db.query(Review).filter(Review.college_name == college.name).all()
+            results.append({
+                "name": college.name,
+                "state": college.state,
+                "location": college.location,
+                "course_level": "Undergraduate" if college.course_level == "UG" else "Postgraduate",
+                "min_score": college.cutoff,
+                "fees": college.fees,
+                "reviews": [{"review_text": r.review_text, "rating": r.rating} for r in reviews]
+            })
+
+        # Suggestions
+        all_colleges = db.query(College).all()
+        suggestions = {
+            "college_name": sorted(
+                set(c.name for c in all_colleges if c.name and (not college_name or college_name.lower() in c.name.lower())),
+                key=str.lower
+            ),
+            "location": sorted(
+                set(c.location for c in all_colleges if c.location and (not location or location.lower() in c.location.lower())),
+                key=str.lower
+            ),
+            "state": sorted(
+                set(c.state for c in all_colleges if c.state and (not state or state.lower() in c.state.lower())),
+                key=str.lower
+            )
+        }
+
+        return {"results": results, "suggestions": suggestions}
+
+    except Exception as e:
+        print(f"❌ API search error: {e}")
+        return {"error": "An error occurred while searching"}, 500
+    finally:
+        db.close()
+
+@app.post("/api/submit_review")
+async def submit_review(
+    college_name: str = Form(...),
+    review_text: str = Form(...),
+    rating: str = Form(...)
+):
+    db = SessionLocal()
+    try:
+        if not college_name or not review_text or not rating:
+            return {"error": "College name, review text, and rating are required"}, 400
+
+        try:
+            rating_value = float(rating)
+            if not (1 <= rating_value <= 5):
+                return {"error": "Rating must be between 1 and 5"}, 400
+        except ValueError:
+            return {"error": "Invalid rating format"}, 400
+
+        # Check if college exists
+        college = db.query(College).filter(College.name == college_name).first()
+        if not college:
+            return {"error": "College not found"}, 404
+
+        # Add review
+        new_review = Review(
+            college_name=college_name,
+            review_text=review_text,
+            rating=rating_value
+        )
+        db.add(new_review)
+        db.commit()
+
+        return {"message": "Review submitted successfully"}
+
+    except Exception as e:
+        print(f"❌ Error submitting review: {e}")
+        return {"error": f"Database error: {str(e)}"}, 500
     finally:
         db.close()
 
