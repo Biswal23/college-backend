@@ -4,19 +4,17 @@ from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from database import SessionLocal, engine, Base
 from models import College, Review
-from typing import List, Dict, Optional
+from typing import Optional
 import os
-
-# At the top with other imports
-from initial_data import initialize_database
 
 # Initialize FastAPI app
 app = FastAPI()
 
-# Initialize database
+# Import database initializer
+from initial_data import initialize_database
 initialize_database()
 
-# Mount static files if directory exists
+# Mount static files
 if os.path.exists("static"):
     app.mount("/static", StaticFiles(directory="static"), name="static")
 
@@ -30,21 +28,12 @@ try:
 except Exception as e:
     print(f"❌ Error creating database tables: {e}")
 
-# Mappings
-STATE_MAPPINGS = {
-    "utt": "Uttar Pradesh",
-    "up": "Uttar Pradesh",
-    "mah": "Maharashtra",
-    "kar": "Karnataka",
-    "tn": "Tamil Nadu"
-}
-
-LOCATION_MAPPINGS = {
-    "mu": "Mumbai",
-    "che": "Chennai",
-    "ban": "Bangalore",
-    "hyd": "Hyderabad",
-    "del": "Delhi"
+# College name mappings to normalize user input
+COLLEGE_MAPPINGS = {
+    "tech college": "Tech College",
+    "science college": "Science College",
+    "eng college": "Engineering College",
+    # Add more mappings if needed
 }
 
 def get_db():
@@ -60,9 +49,9 @@ async def index(request: Request):
     try:
         colleges = db.query(College).all()
         suggestions = {
-            "college_name": sorted(set(c.name for c in colleges), key=str.lower),
-            "location": sorted(set(c.location for c in colleges if c.location), key=str.lower),
-            "state": sorted(set(c.state for c in colleges if c.state), key=str.lower)
+            "college_name": sorted([c.name for c in colleges], key=str.lower),
+            "location": sorted([c.location for c in colleges if c.location], key=str.lower),
+            "state": sorted([c.state for c in colleges if c.state], key=str.lower)
         }
     except Exception as e:
         print(f"❌ Error loading suggestions: {e}")
@@ -93,25 +82,23 @@ async def index_post(
 ):
     db = SessionLocal()
     try:
-        # Validation
         if not course_level:
             raise HTTPException(status_code=400, detail="Course level is required.")
 
-        # Apply mappings
-        state_lower = state.lower() if state else ""
-        if state_lower in STATE_MAPPINGS:
-            state = STATE_MAPPINGS[state_lower]
+        # Normalize inputs
+        state = state.strip()
+        location = location.strip()
+        college_name = college_name.strip()
 
-        location_lower = location.lower() if location else ""
-        if location_lower in LOCATION_MAPPINGS:
-            location = LOCATION_MAPPINGS[location_lower]
+        # Apply college name mapping
+        if college_name.lower() in COLLEGE_MAPPINGS:
+            college_name = COLLEGE_MAPPINGS[college_name.lower()]
 
-        # Base query
         query = db.query(College).filter(
             College.course_level == ("UG" if course_level.lower() == "undergraduate" else "PG")
         )
 
-        # Filters with case-insensitive prefix matching
+        # Filters
         if state:
             query = query.filter(College.state.ilike(f"{state}%"))
         if location:
@@ -125,7 +112,7 @@ async def index_post(
                 upper_fee = lower_fee + 100000
                 query = query.filter(College.fees.between(lower_fee, upper_fee))
             except ValueError:
-                pass
+                print(f"Invalid fees input: {fees}")
         if score:
             try:
                 score_value = float(score)
@@ -137,11 +124,11 @@ async def index_post(
                     upper_score = lower_score + 9000
                 query = query.filter(College.cutoff.between(lower_score, upper_score))
             except ValueError:
-                pass
+                print(f"Invalid score input: {score}")
 
         colleges = query.all()
 
-        # If no optional filters are provided, show all colleges for the mandatory course_level
+        # If no optional filters
         if not any([state, location, college_name, fees, score]):
             colleges = db.query(College).filter(
                 College.course_level == ("UG" if course_level.lower() == "undergraduate" else "PG")
@@ -152,7 +139,6 @@ async def index_post(
         for college in colleges:
             reviews = db.query(Review).filter(Review.college_name == college.name).all()
             avg_rating = sum(r.rating for r in reviews) / len(reviews) if reviews else 0
-
             results.append({
                 "name": college.name,
                 "state": college.state,
@@ -164,8 +150,12 @@ async def index_post(
                 "reviews": [{"review_text": r.review_text, "rating": r.rating} for r in reviews[:2]]
             })
 
-        # Suggestions with prefix matching
+        # Suggestions
         all_colleges = db.query(College).all()
+        existing_college_names = [c.name for c in all_colleges]
+        existing_locations = [c.location for c in all_colleges if c.location]
+        existing_states = [c.state for c in all_colleges if c.state]
+
         suggestions = {
             "college_name": sorted(
                 [c.name for c in all_colleges if not college_name or c.name.lower().startswith(college_name.lower())],
@@ -181,13 +171,25 @@ async def index_post(
             )
         }
 
+        # Smart error messages
+        error_message = None
+        if not results:
+            if state and state not in existing_states:
+                error_message = f"No colleges found for state '{state}'."
+            elif location and location not in existing_locations:
+                error_message = f"No colleges found for location '{location}'."
+            elif college_name and college_name not in existing_college_names:
+                error_message = f"No colleges found for name '{college_name}'."
+            else:
+                error_message = "No colleges found matching your criteria."
+
         return templates.TemplateResponse(
             "index.html",
             {
                 "request": request,
                 "results": sorted(results, key=lambda x: (-x["avg_rating"], x["fees"])),
                 "suggestions": suggestions,
-                "error": None if results else "No colleges found matching your criteria.",
+                "error": error_message,
                 "form_data": {
                     "course_level": course_level,
                     "state": state,
@@ -221,7 +223,6 @@ async def index_post(
     finally:
         db.close()
 
-# Manual entry for adding a new college
 @app.post("/add_college", response_class=HTMLResponse)
 async def add_college(
     request: Request,
@@ -236,25 +237,23 @@ async def add_college(
 ):
     db = SessionLocal()
     try:
-        # Validate inputs
         if not all([name, state, location, course_level, fees, cutoff]):
             raise HTTPException(status_code=400, detail="All fields except review and rating are required.")
-        
+
         if course_level.lower() not in ["undergraduate", "postgraduate"]:
             raise HTTPException(status_code=400, detail="Course level must be Undergraduate or Postgraduate.")
-        
+
         if fees < 0:
             raise HTTPException(status_code=400, detail="Fees cannot be negative.")
-        
+
         if cutoff < 0:
             raise HTTPException(status_code=400, detail="Cutoff score cannot be negative.")
-        
+
         if rating and (rating < 1 or rating > 5):
             raise HTTPException(status_code=400, detail="Rating must be between 1 and 5.")
 
         # Check if college already exists
-        existing_college = db.query(College).filter(College.name == name).first()
-        if existing_college:
+        if db.query(College).filter(College.name == name).first():
             raise HTTPException(status_code=400, detail="College with this name already exists.")
 
         # Create new college
@@ -268,9 +267,8 @@ async def add_college(
         )
         db.add(new_college)
         db.commit()
-        db.refresh(new_college)
 
-        # Add review if provided
+        # Add review if given
         if review_text and rating:
             new_review = Review(
                 college_name=name,
@@ -292,7 +290,7 @@ async def add_college(
                 },
                 "error": None,
                 "form_data": {},
-                "success_message": f"College {name} added successfully!"
+                "success_message": f"✅ College '{name}' added successfully!"
             }
         )
 
@@ -311,12 +309,10 @@ async def add_college(
     finally:
         db.close()
 
-# Health check route
 @app.get("/health")
 async def health_check():
     return {"status": "healthy"}
 
-# API route to list all colleges
 @app.get("/api/colleges")
 def list_colleges():
     db = SessionLocal()
