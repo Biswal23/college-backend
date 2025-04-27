@@ -4,15 +4,15 @@ from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from database import SessionLocal, engine, Base
 from models import College, Review
-from sqlalchemy.sql import text
 from typing import List, Dict, Optional
 import os
 
 # Initialize FastAPI
 app = FastAPI()
 
-# Mount static files
-app.mount("/static", StaticFiles(directory="static"), name="static")
+# Only mount static files if the directory exists
+if os.path.exists("static"):
+    app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # Initialize templates
 templates = Jinja2Templates(directory="templates")
@@ -24,7 +24,7 @@ try:
 except Exception as e:
     print(f"Error creating database tables: {e}")
 
-# State and location mappings
+# State and location mappings for suggestions
 STATE_MAPPINGS = {
     "utt": "Uttar Pradesh",
     "up": "Uttar Pradesh",
@@ -92,41 +92,33 @@ def load_college_data() -> List[Dict]:
     finally:
         db.close()
 
-def get_suggestions(colleges: List[Dict], query: str, field: str) -> List[str]:
-    suggestions = set()
-    query = query.lower()
-    for college in colleges:
-        value = college[field].lower()
-        if query in value:
-            suggestions.add(college[field])
-    return sorted(suggestions)
-
-# Route: GET "/"
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
-    colleges = load_college_data()
+    colleges = []
+    try:
+        colleges = load_college_data()
+    except Exception as e:
+        print(f"Error loading college data: {e}")
+
     locations = sorted(set(c["location"] for c in colleges if c["location"]))
     college_names = sorted(set(c["name"] for c in colleges if c["name"]))
     states = sorted(set(c["state"] for c in colleges if c["state"]))
-
-    suggestions = {
-        "college_name": college_names,
-        "location": locations,
-        "state": states
-    }
 
     return templates.TemplateResponse(
         "index.html",
         {
             "request": request,
             "results": [],
-            "suggestions": suggestions,
+            "suggestions": {
+                "college_name": college_names,
+                "location": locations,
+                "state": states
+            },
             "error": None,
             "form_data": {}
         }
     )
 
-# Route: POST "/"
 @app.post("/", response_class=HTMLResponse)
 async def index_post(
     request: Request,
@@ -149,6 +141,7 @@ async def index_post(
         "score": score
     }
 
+    # Validate mandatory fields
     if not course_level or not state:
         error = "Course level and state are required fields."
         return templates.TemplateResponse(
@@ -157,9 +150,9 @@ async def index_post(
                 "request": request,
                 "results": [],
                 "suggestions": {
-                    "college_name": get_suggestions(colleges, college_name, "name"),
-                    "location": get_suggestions(colleges, location, "location"),
-                    "state": get_suggestions(colleges, state, "state")
+                    "college_name": [],
+                    "location": [],
+                    "state": []
                 },
                 "error": error,
                 "form_data": form_data
@@ -175,7 +168,7 @@ async def index_post(
     if location_lower in LOCATION_MAPPINGS:
         location = LOCATION_MAPPINGS[location_lower]
 
-    # Filter colleges
+    # Filtering
     filtered = [
         c for c in colleges
         if c["course_level"].lower() == course_level.lower()
@@ -211,10 +204,8 @@ async def index_post(
     seen = set()
     results = [
         x for x in filtered
-        if not ((x["name"], x["state"], x["location"]) in seen
-        or seen.add((x["name"], x["state"], x["location"])))
+        if not ((x["name"], x["state"], x["location"]) in seen or seen.add((x["name"], x["state"], x["location"])))
     ]
-
     results.sort(key=lambda x: (-x["avg_rating"], x["fees"]))
 
     return templates.TemplateResponse(
@@ -223,19 +214,17 @@ async def index_post(
             "request": request,
             "results": results,
             "suggestions": {
-                "college_name": get_suggestions(colleges, college_name, "name"),
-                "location": get_suggestions(colleges, location, "location"),
-                "state": get_suggestions(colleges, state, "state")
+                "college_name": [],
+                "location": [],
+                "state": []
             },
             "error": None,
             "form_data": form_data
         }
     )
 
-# Health check endpoint
 @app.get("/health")
 async def health_check():
     return {"status": "healthy"}
 
-# Run if directly executed
 
