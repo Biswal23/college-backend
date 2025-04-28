@@ -5,6 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>College Predictor Form</title>
 
+    <!-- Include jQuery and jQuery UI for autocomplete -->
+    <script src="/static/jquery.min.js"></script>
+    <script src="/static/jquery-ui.min.js"></script>
+    <link rel="stylesheet" href="/static/jquery-ui.min.css">
+
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -92,6 +97,26 @@
             margin: 5px 0;
             color: #555;
         }
+
+        /* Style for jQuery UI Autocomplete */
+        .ui-autocomplete {
+            max-height: 200px;
+            overflow-y: auto;
+            overflow-x: hidden;
+            border: 1px solid #ccc;
+            background: #fff;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+
+        .ui-menu-item {
+            padding: 10px;
+            cursor: pointer;
+        }
+
+        .ui-menu-item:hover {
+            background-color: #f0f0f0;
+        }
     </style>
 </head>
 
@@ -110,32 +135,17 @@
 
         <div class="form-group">
             <label for="state">State *</label>
-            <select name="state" id="state" required>
-                <option value="">Select State</option>
-                {% for state in suggestions.state %}
-                    <option value="{{ state }}" {% if form_data.state == state %}selected{% endif %}>{{ state }}</option>
-                {% endfor %}
-            </select>
+            <input type="text" name="state" id="state" value="{{ form_data.state or '' }}" required placeholder="e.g., Tamil Nadu">
         </div>
 
         <div class="form-group">
             <label for="location">Location</label>
-            <select name="location" id="location">
-                <option value="">Select Location</option>
-                {% for loc in suggestions.location %}
-                    <option value="{{ loc }}" {% if form_data.location == loc %}selected{% endif %}>{{ loc }}</option>
-                {% endfor %}
-            </select>
+            <input type="text" name="location" id="location" value="{{ form_data.location or '' }}" placeholder="e.g., Chennai">
         </div>
 
         <div class="form-group">
             <label for="college_name">College Name</label>
-            <select name="college_name" id="college_name">
-                <option value="">Select College</option>
-                {% for name in suggestions.college_name %}
-                    <option value="{{ name }}" {% if form_data.college_name == name %}selected{% endif %}>{{ name }}</option>
-                {% endfor %}
-            </select>
+            <input type="text" name="college_name" id="college_name" value="{{ form_data.college_name or '' }}" placeholder="e.g., Science College">
         </div>
 
         <div class="form-group">
@@ -177,6 +187,50 @@
         </div>
     {% endfor %}
 {% endif %}
+
+<script>
+    $(document).ready(function() {
+        // Pass suggestions from backend to JavaScript
+        var suggestions = {
+            college_name: {{ suggestions.college_name | tojson }},
+            location: {{ suggestions.location | tojson }},
+            state: {{ suggestions.state | tojson }}
+        };
+
+        // Initialize autocomplete for state
+        $("#state").autocomplete({
+            source: function(request, response) {
+                var matcher = new RegExp("^" + $.ui.autocomplete.escapeRegex(request.term), "i");
+                response($.grep(suggestions.state, function(item) {
+                    return matcher.test(item);
+                }));
+            },
+            minLength: 1
+        });
+
+        // Initialize autocomplete for location
+        $("#location").autocomplete({
+            source: function(request, response) {
+                var matcher = new RegExp("^" + $.ui.autocomplete.escapeRegex(request.term), "i");
+                response($.grep(suggestions.location, function(item) {
+                    return matcher.test(item);
+                }));
+            },
+            minLength: 1
+        });
+
+        // Initialize autocomplete for college_name
+        $("#college_name").autocomplete({
+            source: function(request, response) {
+                var matcher = new RegExp("^" + $.ui.autocomplete.escapeRegex(request.term), "i");
+                response($.grep(suggestions.college_name, function(item) {
+                    return matcher.test(item);
+                }));
+            },
+            minLength: 1
+        });
+    });
+</script>
 
 </body>
 </html>
