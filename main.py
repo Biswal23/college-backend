@@ -462,7 +462,19 @@ async def add_college(
         )
     finally:
         db.close()
-
+@app.get("/api/suggestions")
+async def get_suggestions():
+    db = SessionLocal()
+    try:
+        colleges = db.query(College).all()
+        suggestions = {
+            "college_name": sorted([c.name for c in colleges], key=str.lower),
+            "location": sorted([c.location for c in colleges if c.location], key=str.lower),
+            "state": sorted([c.state for c in colleges if c.state], key=str.lower)
+        }
+        return suggestions
+    finally:
+        db.close()
 @app.get("/health")
 async def health_check():
     return {"status": "healthy"}
