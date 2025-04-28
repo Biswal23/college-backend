@@ -5,10 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>College Predictor Form</title>
 
-    <!-- Include jQuery and jQuery UI for autocomplete -->
-    <script src="/static/jquery.min.js"></script>
-    <script src="/static/jquery-ui.min.js"></script>
-    <link rel="stylesheet" href="/static/jquery-ui.min.css">
+    <!-- Use CDN for jQuery and jQuery UI -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.min.js"></script>
+    <link rel="stylesheet" href="https://code.jquery.com/ui/1.12.1/themes/base/jquery-ui.css">
 
     <style>
         body {
@@ -190,6 +190,10 @@
 
 <script>
     $(document).ready(function() {
+        // Log to verify jQuery is loaded
+        console.log("jQuery version:", $.fn.jquery);
+        console.log("jQuery UI loaded:", !!$.ui);
+
         // Pass suggestions from backend to JavaScript
         var suggestions = {
             college_name: {{ suggestions.college_name | tojson }},
@@ -197,38 +201,50 @@
             state: {{ suggestions.state | tojson }}
         };
 
+        // Log suggestions to debug
+        console.log("Suggestions:", suggestions);
+
         // Initialize autocomplete for state
         $("#state").autocomplete({
-            source: function(request, response) {
-                var matcher = new RegExp("^" + $.ui.autocomplete.escapeRegex(request.term), "i");
-                response($.grep(suggestions.state, function(item) {
-                    return matcher.test(item);
-                }));
+            source: suggestions.state,
+            minLength: 1,
+            open: function(event, ui) {
+                console.log("State autocomplete opened with term:", $(this).val());
             },
-            minLength: 1
+            response: function(event, ui) {
+                console.log("State suggestions:", ui.content);
+            }
         });
 
         // Initialize autocomplete for location
         $("#location").autocomplete({
-            source: function(request, response) {
-                var matcher = new RegExp("^" + $.ui.autocomplete.escapeRegex(request.term), "i");
-                response($.grep(suggestions.location, function(item) {
-                    return matcher.test(item);
-                }));
+            source: suggestions.location,
+            minLength: 1,
+            open: function(event, ui) {
+                console.log("Location autocomplete opened with term:", $(this).val());
             },
-            minLength: 1
+            response: function(event, ui) {
+                console.log("Location suggestions:", ui.content);
+            }
         });
 
         // Initialize autocomplete for college_name
         $("#college_name").autocomplete({
-            source: function(request, response) {
-                var matcher = new RegExp("^" + $.ui.autocomplete.escapeRegex(request.term), "i");
-                response($.grep(suggestions.college_name, function(item) {
-                    return matcher.test(item);
-                }));
+            source: suggestions.college_name,
+            minLength: 1,
+            open: function(event, ui) {
+                console.log("College name autocomplete opened with term:", $(this).val());
             },
-            minLength: 1
+            response: function(event, ui) {
+                console.log("College name suggestions:", ui.content);
+            }
         });
+
+        // Alert if suggestions are empty
+        if (!suggestions.state.length || !suggestions.location.length || !suggestions.college_name.length) {
+            console.warn("Warning: One or more suggestion lists are empty. Check backend data.");
+            alert("Autosuggestions may not work because no data is available. Please check the server logs.");
+        }
     });
 </script>
 
