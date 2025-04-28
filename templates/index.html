@@ -190,61 +190,40 @@
 
 <script>
     $(document).ready(function() {
-        // Log to verify jQuery is loaded
         console.log("jQuery version:", $.fn.jquery);
         console.log("jQuery UI loaded:", !!$.ui);
 
-        // Pass suggestions from backend to JavaScript
-        var suggestions = {
-            college_name: {{ suggestions.college_name | tojson }},
-            location: {{ suggestions.location | tojson }},
-            state: {{ suggestions.state | tojson }}
-        };
-
-        // Log suggestions to debug
+        var suggestions = {{ suggestions | tojson }};
+        if (!suggestions.state.length || !suggestions.location.length || !suggestions.college_name.length) {
+            console.warn("Backend suggestions empty, using fallback");
+            suggestions = {
+                college_name: ["Science College", "Tech College", "Engineering College"],
+                location: ["Chennai", "Mumbai", "Kanpur"],
+                state: ["Tamil Nadu", "Maharashtra", "Uttar Pradesh"]
+            };
+        }
         console.log("Suggestions:", suggestions);
 
-        // Initialize autocomplete for state
         $("#state").autocomplete({
             source: suggestions.state,
             minLength: 1,
-            open: function(event, ui) {
-                console.log("State autocomplete opened with term:", $(this).val());
-            },
-            response: function(event, ui) {
-                console.log("State suggestions:", ui.content);
-            }
+            open: function(event, ui) { console.log("State autocomplete opened with term:", $(this).val()); },
+            response: function(event, ui) { console.log("State suggestions:", ui.content); }
         });
 
-        // Initialize autocomplete for location
         $("#location").autocomplete({
             source: suggestions.location,
             minLength: 1,
-            open: function(event, ui) {
-                console.log("Location autocomplete opened with term:", $(this).val());
-            },
-            response: function(event, ui) {
-                console.log("Location suggestions:", ui.content);
-            }
+            open: function(event, ui) { console.log("Location autocomplete opened with term:", $(this).val()); },
+            response: function(event, ui) { console.log("Location suggestions:", ui.content); }
         });
 
-        // Initialize autocomplete for college_name
         $("#college_name").autocomplete({
             source: suggestions.college_name,
             minLength: 1,
-            open: function(event, ui) {
-                console.log("College name autocomplete opened with term:", $(this).val());
-            },
-            response: function(event, ui) {
-                console.log("College name suggestions:", ui.content);
-            }
+            open: function(event, ui) { console.log("College name autocomplete opened with term:", $(this).val()); },
+            response: function(event, ui) { console.log("College name suggestions:", ui.content); }
         });
-
-        // Alert if suggestions are empty
-        if (!suggestions.state.length || !suggestions.location.length || !suggestions.college_name.length) {
-            console.warn("Warning: One or more suggestion lists are empty. Check backend data.");
-            alert("Autosuggestions may not work because no data is available. Please check the server logs.");
-        }
     });
 </script>
 
