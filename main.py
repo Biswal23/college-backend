@@ -53,13 +53,16 @@ async def index(request: Request):
         else:
             print(f"GET /: Colleges: {[c.name for c in colleges]}")
 
-        # Initialize suggestions with all available options
+        # Generate suggestions
         all_suggestions = {
             "college_name": sorted([c.name for c in colleges], key=str.lower),
             "location": sorted([c.location for c in colleges if c.location], key=str.lower),
             "state": sorted([c.state for c in colleges if c.state], key=str.lower)
         }
         print(f"GET /: Initial suggestions: {all_suggestions}")
+        if not any(all_suggestions.values()):
+            print("GET /: Error: Suggestions are empty! Check database data.")
+
     except Exception as e:
         print(f"❌ GET /: Error loading suggestions: {e}")
         all_suggestions = {"college_name": [], "location": [], "state": []}
@@ -69,7 +72,7 @@ async def index(request: Request):
     context = {
         "request": request,
         "results": [],
-        "suggestions": all_suggestions,  # Pass all suggestions for frontend autosuggestion
+        "suggestions": all_suggestions,
         "error": None,
         "form_data": {}
     }
@@ -168,7 +171,6 @@ async def index_post(
         existing_locations = [c.location for c in all_colleges if c.location]
         existing_states = [c.state for c in all_colleges if c.state]
 
-        # Filter suggestions based on input prefixes (case-insensitive)
         suggestions = {
             "college_name": sorted(
                 [name for name in existing_college_names if name.lower().startswith(college_name.lower())],
@@ -184,6 +186,8 @@ async def index_post(
             ) if state else sorted(existing_states, key=str.lower)
         }
         print(f"POST /: Generated suggestions: {suggestions}")
+        if not any(suggestions.values()):
+            print("POST /: Error: Suggestions are empty! Check database data.")
 
         # Check for invalid inputs and provide specific error messages
         error_message = None
