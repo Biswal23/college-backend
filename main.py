@@ -6,8 +6,6 @@ from database import SessionLocal, engine, Base
 from models import College, Review
 from typing import Optional
 import os
-
-# At the top with other imports
 from initial_data import initialize_database
 
 # Initialize FastAPI app
@@ -55,22 +53,23 @@ async def index(request: Request):
         else:
             print(f"GET /: Colleges: {[c.name for c in colleges]}")
 
-        suggestions = {
+        # Initialize suggestions with all available options
+        all_suggestions = {
             "college_name": sorted([c.name for c in colleges], key=str.lower),
             "location": sorted([c.location for c in colleges if c.location], key=str.lower),
             "state": sorted([c.state for c in colleges if c.state], key=str.lower)
         }
-        print(f"GET /: Initial suggestions: {suggestions}")
+        print(f"GET /: Initial suggestions: {all_suggestions}")
     except Exception as e:
         print(f"❌ GET /: Error loading suggestions: {e}")
-        suggestions = {"college_name": [], "location": [], "state": []}
+        all_suggestions = {"college_name": [], "location": [], "state": []}
     finally:
         db.close()
 
     context = {
         "request": request,
         "results": [],
-        "suggestions": suggestions,
+        "suggestions": all_suggestions,  # Pass all suggestions for frontend autosuggestion
         "error": None,
         "form_data": {}
     }
@@ -163,29 +162,37 @@ async def index_post(
                 "reviews": [{"review_text": r.review_text, "rating": r.rating} for r in reviews[:2]]
             })
 
-        # Generate suggestions with prefix matching
-        # Use all colleges for suggestions, not filtered ones, to ensure dropdowns always have options
+        # Generate autosuggestions based on user input prefixes
         all_colleges = db.query(College).all()
         existing_college_names = [c.name for c in all_colleges]
         existing_locations = [c.location for c in all_colleges if c.location]
         existing_states = [c.state for c in all_colleges if c.state]
 
-        # Always show all available options in dropdowns, not filtered by prefix
+        # Filter suggestions based on input prefixes (case-insensitive)
         suggestions = {
-            "college_name": sorted(existing_college_names, key=str.lower),
-            "location": sorted(existing_locations, key=str.lower),
-            "state": sorted(existing_states, key=str.lower)
+            "college_name": sorted(
+                [name for name in existing_college_names if name.lower().startswith(college_name.lower())],
+                key=str.lower
+            ) if college_name else sorted(existing_college_names, key=str.lower),
+            "location": sorted(
+                [loc for loc in existing_locations if loc.lower().startswith(location.lower())],
+                key=str.lower
+            ) if location else sorted(existing_locations, key=str.lower),
+            "state": sorted(
+                [st for st in existing_states if st.lower().startswith(state.lower())],
+                key=str.lower
+            ) if state else sorted(existing_states, key=str.lower)
         }
         print(f"POST /: Generated suggestions: {suggestions}")
 
         # Check for invalid inputs and provide specific error messages
         error_message = None
         if not results:
-            if state and state not in existing_states:
+            if state and not any(st.lower().startswith(state.lower()) for st in existing_states):
                 error_message = f"Result fetching error: No matching colleges found for state '{state}'."
-            elif location and location not in existing_locations:
+            elif location and not any(loc.lower().startswith(location.lower()) for loc in existing_locations):
                 error_message = f"Result fetching error: No matching colleges found for location '{location}'."
-            elif college_name and college_name not in existing_college_names:
+            elif college_name and not any(name.lower().startswith(college_name.lower()) for name in existing_college_names):
                 error_message = f"Result fetching error: No matching colleges found for college name '{college_name}'."
             else:
                 error_message = "No colleges found matching your criteria."
@@ -229,7 +236,6 @@ async def index_post(
     finally:
         db.close()
 
-# ... (rest of the code, including /add_college, /health, and /api/colleges, remains the same) ...
 @app.post("/api/search")
 async def search(
     course_level: str = Form(...),
@@ -241,24 +247,25 @@ async def search(
 ):
     db = SessionLocal()
     try:
-        if not course_level or not state:
-            return {"error": "Course level and state are required"}, 400
+        if not course_level:
+            return {"error": "Course level is required"}, 400
 
         # Normalize inputs
-        state = state.strip()
-        location = location.strip()
-        college_name = college_name.strip()
+        state = state.strip() if state else ""
+        location = location.strip() if location else ""
+        college_name = college_name.strip() if college_name else ""
 
         # Apply college name mapping
         if college_name.lower() in COLLEGE_MAPPINGS:
             college_name = COLLEGE_MAPPINGS[college_name.lower()]
 
         query = db.query(College).filter(
-            College.course_level == ("UG" if course_level.lower() == "undergraduate" else "PG"),
-            College.state.ilike(f"{state}%")
+            College.course_level == ("UG" if course_level.lower() == "undergraduate" else "PG")
         )
 
-        # Filters
+        # Filters with prefix matching
+        if state:
+            query = query.filter(College.state.ilike(f"{state}%"))
         if location:
             query = query.filter(College.location.ilike(f"{location}%"))
         if college_name:
@@ -301,12 +308,21 @@ async def search(
                 "reviews": [{"review_text": r.review_text, "rating": r.rating} for r in reviews]
             })
 
-        # Suggestions: Always include all available options
+        # Generate autosuggestions based on user input prefixes
         all_colleges = db.query(College).all()
         suggestions = {
-            "college_name": sorted(set(c.name for c in all_colleges if c.name), key=str.lower),
-            "location": sorted(set(c.location for c in all_colleges if c.location), key=str.lower),
-            "state": sorted(set(c.state for c in all_colleges if c.state), key=str.lower)
+            "college_name": sorted(
+                [c.name for c in all_colleges if c.name.lower().startswith(college_name.lower())],
+                key=str.lower
+            ) if college_name else sorted([c.name for c in all_colleges], key=str.lower),
+            "location": sorted(
+                [c.location for c in all_colleges if c.location and c.location.lower().startswith(location.lower())],
+                key=str.lower
+            ) if location else sorted([c.location for c in all_colleges if c.location], key=str.lower),
+            "state": sorted(
+                [c.state for c in all_colleges if c.state and c.state.lower().startswith(state.lower())],
+                key=str.lower
+            ) if state else sorted([c.state for c in all_colleges if c.state], key=str.lower)
         }
 
         return {"results": results, "suggestions": suggestions}
@@ -412,16 +428,20 @@ async def add_college(
             db.add(new_review)
             db.commit()
 
+        # Generate updated suggestions
+        all_colleges = db.query(College).all()
+        suggestions = {
+            "college_name": sorted([c.name for c in all_colleges], key=str.lower),
+            "location": sorted([c.location for c in all_colleges if c.location], key=str.lower),
+            "state": sorted([c.state for c in all_colleges if c.state], key=str.lower)
+        }
+
         return templates.TemplateResponse(
             "index.html",
             {
                 "request": request,
                 "results": [],
-                "suggestions": {
-                    "college_name": sorted(set(c.name for c in db.query(College).all()), key=str.lower),
-                    "location": sorted(set(c.location for c in db.query(College).all() if c.location), key=str.lower),
-                    "state": sorted(set(c.state for c in db.query(College).all() if c.state), key=str.lower)
-                },
+                "suggestions": suggestions,
                 "error": None,
                 "form_data": {},
                 "success_message": f"✅ College '{name}' added successfully!"
