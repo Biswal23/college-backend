@@ -172,19 +172,19 @@ async def index_post(
         existing_states = [c.state for c in all_colleges if c.state]
 
         suggestions = {
-        "college_name": sorted(
-            set(c["name"] for c in colleges if c["name"] and (not college_name or college_name.lower() in c["name"].lower())),
-            key=lambda x: x.lower()
-        ),
-        "location": sorted(
-            set(c["location"] for c in colleges if c["location"] and (not location or location.lower() in c["location"].lower())),
-            key=lambda x: x.lower()
-        ),
-        "state": sorted(
-            set(c["state"] for c in colleges if c["state"] and (not state or state.lower() in c["state"].lower())),
-            key=lambda x: x.lower()
-        )
-    }
+            "college_name": sorted(
+                set(c.name for c in colleges if c.name and (not college_name or college_name.lower() in c.name.lower())),
+                key=lambda x: x.lower()
+            ),
+            "location": sorted(
+                set(c.location for c in colleges if c.location and (not location or location.lower() in c.location.lower())),
+                key=lambda x: x.lower()
+            ),
+            "state": sorted(
+                set(c.state for c in colleges if c.state and (not state or state.lower() in c.state.lower())),
+                key=lambda x: x.lower()
+            )
+        }
         print(f"POST /: Generated suggestions: {suggestions}")
         if not any(suggestions.values()):
             print("POST /: Error: Suggestions are empty! Check database data.")
@@ -271,7 +271,7 @@ async def search(
         if state:
             query = query.filter(College.state.ilike(f"{state}%"))
         if location:
-            query = query.filter(College.location.ilike(f"{location}%"))
+            query = query.filter(College.location.ilike(f"{state}%"))
         if college_name:
             query = query.filter(College.name.ilike(f"{college_name}%"))
         if fees:
@@ -406,7 +406,7 @@ async def add_college(
         if rating and (rating < 1 or rating > 5):
             raise HTTPException(status_code=400, detail="Rating must be between 1 and 5.")
 
-        # Check if college already exists
+        # Check if college exists
         if db.query(College).filter(College.name == name).first():
             raise HTTPException(status_code=400, detail="College with this name already exists.")
 
@@ -466,6 +466,7 @@ async def add_college(
         )
     finally:
         db.close()
+
 @app.get("/api/suggestions")
 async def get_suggestions():
     db = SessionLocal()
@@ -479,6 +480,7 @@ async def get_suggestions():
         return suggestions
     finally:
         db.close()
+
 @app.get("/health")
 async def health_check():
     return {"status": "healthy"}
