@@ -172,19 +172,19 @@ async def index_post(
         existing_states = [c.state for c in all_colleges if c.state]
 
         suggestions = {
-            "college_name": sorted(
-                [name for name in existing_college_names if name.lower().startswith(college_name.lower())],
-                key=str.lower
-            ) if college_name else sorted(existing_college_names, key=str.lower),
-            "location": sorted(
-                [loc for loc in existing_locations if loc.lower().startswith(location.lower())],
-                key=str.lower
-            ) if location else sorted(existing_locations, key=str.lower),
-            "state": sorted(
-                [st for st in existing_states if st.lower().startswith(state.lower())],
-                key=str.lower
-            ) if state else sorted(existing_states, key=str.lower)
-        }
+        "college_name": sorted(
+            set(c["name"] for c in colleges if c["name"] and (not college_name or college_name.lower() in c["name"].lower())),
+            key=lambda x: x.lower()
+        ),
+        "location": sorted(
+            set(c["location"] for c in colleges if c["location"] and (not location or location.lower() in c["location"].lower())),
+            key=lambda x: x.lower()
+        ),
+        "state": sorted(
+            set(c["state"] for c in colleges if c["state"] and (not state or state.lower() in c["state"].lower())),
+            key=lambda x: x.lower()
+        )
+    }
         print(f"POST /: Generated suggestions: {suggestions}")
         if not any(suggestions.values()):
             print("POST /: Error: Suggestions are empty! Check database data.")
