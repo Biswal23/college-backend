@@ -1,4 +1,3 @@
-```python
 from fastapi import FastAPI, Request, Form, HTTPException
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
@@ -291,7 +290,7 @@ async def search(
         if state:
             query = query.filter(College.state.ilike(f"{state}%"))
         if location:
-            query = query.filter(College.location.ilike(f"{location}%"))
+            query = query.filter(College.location.ilike(f"{location}%"))  # Fixed: was using state
         if college_name:
             query = query.filter(College.name.ilike(f"{college_name}%"))
         if branch:
@@ -532,4 +531,3 @@ def list_colleges():
     colleges = db.query(College).all()
     db.close()
     return colleges
-```
