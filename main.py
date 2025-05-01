@@ -1,3 +1,4 @@
+```python
 from fastapi import FastAPI, Request, Form, HTTPException
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
@@ -33,6 +34,8 @@ COLLEGE_MAPPINGS = {
     "tech college": "Tech College",
     "science college": "Science College",
     "eng college": "Engineering College",
+    "commerce institute": "Commerce Institute",
+    "polytechnic institute": "Polytechnic Institute",
 }
 
 def get_db():
@@ -57,7 +60,8 @@ async def index(request: Request):
         all_suggestions = {
             "college_name": sorted([c.name for c in colleges], key=str.lower),
             "location": sorted([c.location for c in colleges if c.location], key=str.lower),
-            "state": sorted([c.state for c in colleges if c.state], key=str.lower)
+            "state": sorted([c.state for c in colleges if c.state], key=str.lower),
+            "branch": sorted([c.branch for c in colleges if c.branch], key=str.lower)
         }
         print(f"GET /: Initial suggestions: {all_suggestions}")
         if not any(all_suggestions.values()):
@@ -65,7 +69,7 @@ async def index(request: Request):
 
     except Exception as e:
         print(f"❌ GET /: Error loading suggestions: {e}")
-        all_suggestions = {"college_name": [], "location": [], "state": []}
+        all_suggestions = {"college_name": [], "location": [], "state": [], "branch": []}
     finally:
         db.close()
 
@@ -86,6 +90,7 @@ async def index_post(
     state: Optional[str] = Form(default=""),
     location: Optional[str] = Form(default=""),
     college_name: Optional[str] = Form(default=""),
+    branch: Optional[str] = Form(default=""),
     fees: Optional[str] = Form(default=""),
     score: Optional[str] = Form(default="")
 ):
@@ -94,22 +99,24 @@ async def index_post(
         # Validation
         if not course_level:
             raise HTTPException(status_code=400, detail="Course level is required.")
+        allowed_course_levels = ["BTech", "Diploma", "Degree"]
+        if course_level not in allowed_course_levels:
+            raise HTTPException(status_code=400, detail=f"Course level must be one of {allowed_course_levels}.")
 
         # Normalize inputs
         state = state.strip() if state else ""
         location = location.strip() if location else ""
         college_name = college_name.strip() if college_name else ""
+        branch = branch.strip() if branch else ""
 
         # Apply college name mapping
         college_name_lower = college_name.lower()
         if college_name_lower in COLLEGE_MAPPINGS:
             college_name = COLLEGE_MAPPINGS[college_name_lower]
-        print(f"POST /: Inputs - course_level: {course_level}, state: {state}, location: {location}, college_name: {college_name}, fees: {fees}, score: {score}")
+        print(f"POST /: Inputs - course_level: {course_level}, state: {state}, location: {location}, college_name: {college_name}, branch: {branch}, fees: {fees}, score: {score}")
 
         # Base query
-        query = db.query(College).filter(
-            College.course_level == ("UG" if course_level.lower() == "undergraduate" else "PG")
-        )
+        query = db.query(College).filter(College.course_level == course_level)
 
         # Apply filters with case-insensitive prefix matching
         if state:
@@ -118,6 +125,8 @@ async def index_post(
             query = query.filter(College.location.ilike(f"{location}%"))
         if college_name:
             query = query.filter(College.name.ilike(f"{college_name}%"))
+        if branch:
+            query = query.filter(College.branch.ilike(f"{branch}%"))
         if fees:
             try:
                 fees_value = float(fees)
@@ -143,10 +152,8 @@ async def index_post(
         print(f"POST /: Query results count: {len(colleges)}")
 
         # If no optional filters, show all for the mandatory course_level
-        if not any([state, location, college_name, fees, score]):
-            colleges = db.query(College).filter(
-                College.course_level == ("UG" if course_level.lower() == "undergraduate" else "PG")
-            ).all()
+        if not any([state, location, college_name, branch, fees, score]):
+            colleges = db.query(College).filter(College.course_level == course_level).all()
             print(f"POST /: All colleges for {course_level}: {len(colleges)}")
 
         # Format results
@@ -158,7 +165,8 @@ async def index_post(
                 "name": college.name,
                 "state": college.state,
                 "location": college.location,
-                "course_level": "Undergraduate" if college.course_level == "UG" else "Postgraduate",
+                "course_level": college.course_level,
+                "branch": college.branch,
                 "min_score": college.cutoff,
                 "fees": college.fees,
                 "avg_rating": avg_rating,
@@ -170,6 +178,7 @@ async def index_post(
         existing_college_names = [c.name for c in all_colleges]
         existing_locations = [c.location for c in all_colleges if c.location]
         existing_states = [c.state for c in all_colleges if c.state]
+        existing_branches = [c.branch for c in all_colleges if c.branch]
 
         suggestions = {
             "college_name": sorted(
@@ -182,6 +191,10 @@ async def index_post(
             ),
             "state": sorted(
                 set(c.state for c in colleges if c.state and (not state or state.lower() in c.state.lower())),
+                key=lambda x: x.lower()
+            ),
+            "branch": sorted(
+                set(c.branch for c in colleges if c.branch and (not branch or branch.lower() in c.branch.lower())),
                 key=lambda x: x.lower()
             )
         }
@@ -198,6 +211,8 @@ async def index_post(
                 error_message = f"Result fetching error: No matching colleges found for location '{location}'."
             elif college_name and not any(name.lower().startswith(college_name.lower()) for name in existing_college_names):
                 error_message = f"Result fetching error: No matching colleges found for college name '{college_name}'."
+            elif branch and not any(br.lower().startswith(branch.lower()) for br in existing_branches):
+                error_message = f"Result fetching error: No matching colleges found for branch '{branch}'."
             else:
                 error_message = "No colleges found matching your criteria."
 
@@ -211,6 +226,7 @@ async def index_post(
                 "state": state,
                 "location": location,
                 "college_name": college_name,
+                "branch": branch,
                 "fees": fees,
                 "score": score
             }
@@ -225,13 +241,14 @@ async def index_post(
             {
                 "request": request,
                 "results": [],
-                "suggestions": {"college_name": [], "location": [], "state": []},
+                "suggestions": {"college_name": [], "location": [], "state": [], "branch": []},
                 "error": f"An error occurred while searching: {str(e)}",
                 "form_data": {
                     "course_level": course_level,
                     "state": state,
                     "location": location,
                     "college_name": college_name,
+                    "branch": branch,
                     "fees": fees,
                     "score": score
                 }
@@ -246,6 +263,7 @@ async def search(
     state: Optional[str] = Form(default=""),
     location: Optional[str] = Form(default=""),
     college_name: Optional[str] = Form(default=""),
+    branch: Optional[str] = Form(default=""),
     fees: Optional[str] = Form(default=""),
     score: Optional[str] = Form(default="")
 ):
@@ -253,27 +271,31 @@ async def search(
     try:
         if not course_level:
             return {"error": "Course level is required"}, 400
+        allowed_course_levels = ["BTech", "Diploma", "Degree"]
+        if course_level not in allowed_course_levels:
+            return {"error": f"Course level must be one of {allowed_course_levels}"}, 400
 
         # Normalize inputs
         state = state.strip() if state else ""
         location = location.strip() if location else ""
         college_name = college_name.strip() if college_name else ""
+        branch = branch.strip() if branch else ""
 
         # Apply college name mapping
         if college_name.lower() in COLLEGE_MAPPINGS:
             college_name = COLLEGE_MAPPINGS[college_name.lower()]
 
-        query = db.query(College).filter(
-            College.course_level == ("UG" if course_level.lower() == "undergraduate" else "PG")
-        )
+        query = db.query(College).filter(College.course_level == course_level)
 
         # Filters with prefix matching
         if state:
             query = query.filter(College.state.ilike(f"{state}%"))
         if location:
-            query = query.filter(College.location.ilike(f"{state}%"))
+            query = query.filter(College.location.ilike(f"{location}%"))
         if college_name:
             query = query.filter(College.name.ilike(f"{college_name}%"))
+        if branch:
+            query = query.filter(College.branch.ilike(f"{branch}%"))
         if fees:
             try:
                 max_fees = float(fees)
@@ -289,11 +311,11 @@ async def search(
 
         colleges = query.all()
 
-        # Deduplicate colleges by name, state, location, course_level
+        # Deduplicate colleges by name, state, location, course_level, branch
         seen = set()
         deduplicated_colleges = []
         for college in colleges:
-            key = (college.name, college.state, college.location, college.course_level)
+            key = (college.name, college.state, college.location, college.course_level, college.branch)
             if key not in seen:
                 seen.add(key)
                 deduplicated_colleges.append(college)
@@ -306,7 +328,8 @@ async def search(
                 "name": college.name,
                 "state": college.state,
                 "location": college.location,
-                "course_level": "Undergraduate" if college.course_level == "UG" else "Postgraduate",
+                "course_level": college.course_level,
+                "branch": college.branch,
                 "min_score": college.cutoff,
                 "fees": college.fees,
                 "reviews": [{"review_text": r.review_text, "rating": r.rating} for r in reviews]
@@ -326,7 +349,11 @@ async def search(
             "state": sorted(
                 [c.state for c in all_colleges if c.state and c.state.lower().startswith(state.lower())],
                 key=str.lower
-            ) if state else sorted([c.state for c in all_colleges if c.state], key=str.lower)
+            ) if state else sorted([c.state for c in all_colleges if c.state], key=str.lower),
+            "branch": sorted(
+                [c.branch for c in all_colleges if c.branch and c.branch.lower().startswith(branch.lower())],
+                key=str.lower
+            ) if branch else sorted([c.branch for c in all_colleges if c.branch], key=str.lower)
         }
 
         return {"results": results, "suggestions": suggestions}
@@ -384,6 +411,7 @@ async def add_college(
     state: str = Form(...),
     location: str = Form(...),
     course_level: str = Form(...),
+    branch: str = Form(...),
     fees: float = Form(...),
     cutoff: float = Form(...),
     review_text: Optional[str] = Form(default=""),
@@ -391,11 +419,21 @@ async def add_college(
 ):
     db = SessionLocal()
     try:
-        if not all([name, state, location, course_level, fees, cutoff]):
+        if not all([name, state, location, course_level, branch, fees, cutoff]):
             raise HTTPException(status_code=400, detail="All fields except review and rating are required.")
 
-        if course_level.lower() not in ["undergraduate", "postgraduate"]:
-            raise HTTPException(status_code=400, detail="Course level must be Undergraduate or Postgraduate.")
+        allowed_course_levels = ["BTech", "Diploma", "Degree"]
+        if course_level not in allowed_course_levels:
+            raise HTTPException(status_code=400, detail=f"Course level must be one of {allowed_course_levels}.")
+
+        # Validate branch based on course_level
+        allowed_branches = {
+            "BTech": ["Mechanical Engineering", "Computer Science", "Civil Engineering", "Electronics and Telecommunication"],
+            "Diploma": ["Mechanical Engineering", "Computer Science", "Civil Engineering", "Electronics and Telecommunication"],
+            "Degree": ["Science", "Commerce", "Arts"]
+        }
+        if branch not in allowed_branches[course_level]:
+            raise HTTPException(status_code=400, detail=f"Branch must be one of {allowed_branches[course_level]} for {course_level}.")
 
         if fees < 0:
             raise HTTPException(status_code=400, detail="Fees cannot be negative.")
@@ -415,7 +453,8 @@ async def add_college(
             name=name,
             state=state,
             location=location,
-            course_level="UG" if course_level.lower() == "undergraduate" else "PG",
+            course_level=course_level,
+            branch=branch,
             fees=fees,
             cutoff=cutoff
         )
@@ -437,7 +476,8 @@ async def add_college(
         suggestions = {
             "college_name": sorted([c.name for c in all_colleges], key=str.lower),
             "location": sorted([c.location for c in all_colleges if c.location], key=str.lower),
-            "state": sorted([c.state for c in all_colleges if c.state], key=str.lower)
+            "state": sorted([c.state for c in all_colleges if c.state], key=str.lower),
+            "branch": sorted([c.branch for c in all_colleges if c.branch], key=str.lower)
         }
 
         return templates.TemplateResponse(
@@ -459,7 +499,7 @@ async def add_college(
             {
                 "request": request,
                 "results": [],
-                "suggestions": {"college_name": [], "location": [], "state": []},
+                "suggestions": {"college_name": [], "location": [], "state": [], "branch": []},
                 "error": f"Error adding college: {str(e)}",
                 "form_data": {}
             }
@@ -475,7 +515,8 @@ async def get_suggestions():
         suggestions = {
             "college_name": sorted([c.name for c in colleges], key=str.lower),
             "location": sorted([c.location for c in colleges if c.location], key=str.lower),
-            "state": sorted([c.state for c in colleges if c.state], key=str.lower)
+            "state": sorted([c.state for c in colleges if c.state], key=str.lower),
+            "branch": sorted([c.branch for c in colleges if c.branch], key=str.lower)
         }
         return suggestions
     finally:
@@ -491,3 +532,4 @@ def list_colleges():
     colleges = db.query(College).all()
     db.close()
     return colleges
+```
