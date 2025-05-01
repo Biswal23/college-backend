@@ -7,7 +7,7 @@ class College(Base):
     name = Column(String, index=True)
     state = Column(String)
     location = Column(String)
-    course_level = Column(String, index=True)  # Now "BTech", "Diploma", "Degree"
+    course_level = Column(String, index=True)  # Supports "BTech", "Diploma", "Degree"
     branch = Column(String, index=True)  # New field for branch
     fees = Column(Float)
     cutoff = Column(Integer)
