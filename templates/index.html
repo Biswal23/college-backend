@@ -40,7 +40,7 @@
 
                     <div class="form-group">
                         <label for="state">State:</label>
-                        <input type="text" id="state" name="state" list="state-suggestions">
+                        <input type="text" id="state" name="state" list="state-suggestions" class="suggestion-input">
                         <datalist id="state-suggestions">
                             {% for state in suggestions.state %}
                                 <option value="{{ state }}">
@@ -50,7 +50,7 @@
 
                     <div class="form-group">
                         <label for="location">Location:</label>
-                        <input type="text" id="location" name="location" list="location-suggestions">
+                        <input type="text" id="location" name="location" list="location-suggestions" class="suggestion-input">
                         <datalist id="location-suggestions">
                             {% for location in suggestions.location %}
                                 <option value="{{ location }}">
@@ -60,7 +60,7 @@
 
                     <div class="form-group">
                         <label for="college_name">College Name:</label>
-                        <input type="text" id="college_name" name="college_name" list="college-suggestions">
+                        <input type="text" id="college_name" name="college_name" list="college-suggestions" class="suggestion-input">
                         <datalist id="college-suggestions">
                             {% for college in suggestions.college_name %}
                                 <option value="{{ college }}">
@@ -84,8 +84,8 @@
 
         <!-- Navigation Buttons (Mobile) -->
         <div class="nav-buttons">
-            <button class="nav-up" onclick="scrollBy(0, -100)">&#8679;</button>
-            <button class="nav-down" onclick="scrollBy(0, 100)">&#8681;</button>
+            <button class="nav-up" onclick="scrollBy(0, -100)">⇧</button>
+            <button class="nav-down" onclick="scrollBy(0, 100)">⇩</button>
             <button class="back-to-top" onclick="scrollTo(0, 0)">Top</button>
         </div>
 
@@ -163,7 +163,7 @@
         </section>
     </main>
 
-    <!-- JavaScript for Branch Options -->
+    <!-- JavaScript for Branch Options and Scroll Behavior -->
     <script>
         function updateBranchOptions() {
             const courseLevel = document.getElementById("course_level").value;
