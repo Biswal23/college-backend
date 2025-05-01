@@ -17,139 +17,96 @@
         </header>
 
         <!-- Search Form -->
-        <section>
+        <section class="search-section">
             <h2>Search for Colleges</h2>
             <form action="/" method="post">
-                <label for="course_level">Course Level:</label>
-                <select id="course_level" name="course_level" required onchange="updateBranchOptions()">
-                    <option value="">Select Course Level</option>
-                    <option value="BTech">BTech</option>
-                    <option value="Diploma">Diploma</option>
-                    <option value="Degree">Degree</option>
-                </select>
+                <div class="form-container">
+                    <div class="form-group">
+                        <label for="course_level">Course Level:</label>
+                        <select id="course_level" name="course_level" required onchange="updateBranchOptions()">
+                            <option value="">Select Course Level</option>
+                            <option value="BTech">BTech</option>
+                            <option value="Diploma">Diploma</option>
+                            <option value="Degree">Degree</option>
+                        </select>
+                    </div>
 
-                <label for="branch">Branch:</label>
-                <select id="branch" name="branch">
-                    <option value="">Select Branch</option>
-                </select>
+                    <div class="form-group">
+                        <label for="branch">Branch:</label>
+                        <select id="branch" name="branch">
+                            <option value="">Select Branch</option>
+                        </select>
+                    </div>
 
-                <label for="state">State:</label>
-                <input type="text" id="state" name="state">
+                    <div class="form-group">
+                        <label for="state">State:</label>
+                        <input type="text" id="state" name="state">
+                    </div>
 
-                <label for="location">Location:</label>
-                <input type="text" id="location" name="location">
+                    <div class="form-group">
+                        <label for="location">Location:</label>
+                        <input type="text" id="location" name="location">
+                    </div>
 
-                <label for="college_name">College Name:</label>
-                <input type="text" id="college_name" name="college_name">
+                    <div class="form-group">
+                        <label for="college_name">College Name:</label>
+                        <input type="text" id="college_name" name="college_name">
+                    </div>
 
-                <label for="fees">Fees (approx):</label>
-                <input type="number" id="fees" name="fees">
+                    <div class="form-group">
+                        <label for="fees">Fees (approx):</label>
+                        <input type="number" id="fees" name="fees">
+                    </div>
 
-                <label for="score">Score (cutoff):</label>
-                <input type="number" id="score" name="score">
-
+                    <div class="form-group">
+                        <label for="score">Score (cutoff):</label>
+                        <input type="number" id="score" name="score">
+                    </div>
+                </div>
                 <button type="submit">Search</button>
             </form>
         </section>
 
-        <!-- Add College Form -->
-        <section>
-            <h2>Add a New College</h2>
-            <form action="/add_college" method="post">
-                <label for="name">College Name:</label>
-                <input type="text" id="name" name="name" required>
+        <!-- Search Results and Messages -->
+        <section class="results-section">
+            <!-- Display Messages -->
+            {% if error %}
+                <p class="error">{{ error }}</p>
+            {% endif %}
+            {% if success_message %}
+                <p class="success">{{ success_message }}</p>
+            {% endif %}
 
-                <label for="state">State:</label>
-                <input type="text" id="state" name="state" required>
-
-                <label for="location">Location:</label>
-                <input type="text" id="location" name="location" required>
-
-                <label for="course_level_add">Course Level:</label>
-                <select id="course_level_add" name="course_level" required onchange="updateBranchOptionsAdd()">
-                    <option value="">Select Course Level</option>
-                    <option value="BTech">BTech</option>
-                    <option value="Diploma">Diploma</option>
-                    <option value="Degree">Degree</option>
-                </select>
-
-                <label for="branch_add">Branch:</label>
-                <select id="branch_add" name="branch" required>
-                    <option value="">Select Branch</option>
-                </select>
-
-                <label for="fees">Fees:</label>
-                <input type="number" id="fees" name="fees" required>
-
-                <label for="cutoff">Cutoff Score:</label>
-                <input type="number" id="cutoff" name="cutoff" required>
-
-                <label for="review_text">Review (optional):</label>
-                <textarea id="review_text" name="review_text"></textarea>
-
-                <label for="rating">Rating (1-5, optional):</label>
-                <input type="number" id="rating" name="rating" min="1" max="5">
-
-                <button type="submit">Add College</button>
-            </form>
+            <!-- Search Results -->
+            {% if results %}
+                <h2>Search Results</h2>
+                <ul class="results">
+                    {% for result in results %}
+                        <li>
+                            <strong class="college-name">{{ result.name }}</strong><br>
+                            Course: {{ result.course_level }} - {{ result.branch }}<br>
+                            Location: {{ result.location }}, {{ result.state }}<br>
+                            Fees: ₹{{ result.fees }}<br>
+                            Cutoff: {{ result.min_score }}<br>
+                            Avg Rating: {{ result.avg_rating | round(1) }}<br>
+                            Reviews:
+                            <ul>
+                                {% for review in result.reviews %}
+                                    <li class="review-text">{{ review.review_text }} ({{ review.rating }}/5)</li>
+                                {% endfor %}
+                            </ul>
+                        </li>
+                    {% endfor %}
+                </ul>
+            {% endif %}
         </section>
-
-        <!-- Display Messages -->
-        {% if error %}
-            <p class="error">{{ error }}</p>
-        {% endif %}
-        {% if success_message %}
-            <p class="success">{{ success_message }}</p>
-        {% endif %}
-
-        <!-- Search Results -->
-        {% if results %}
-        <section>
-            <h2>Search Results</h2>
-            <ul class="results">
-                {% for result in results %}
-                    <li>
-                        <strong>{{ result.name }}</strong><br>
-                        Course: {{ result.course_level }} - {{ result.branch }}<br>
-                        Location: {{ result.location }}, {{ result.state }}<br>
-                        Fees: ₹{{ result.fees }}<br>
-                        Cutoff: {{ result.min_score }}<br>
-                        Avg Rating: {{ result.avg_rating | round(1) }}<br>
-                        Reviews:
-                        <ul>
-                            {% for review in result.reviews %}
-                                <li>{{ review.review_text }} ({{ review.rating }}/5)</li>
-                            {% endfor %}
-                        </ul>
-                    </li>
-                {% endfor %}
-            </ul>
-        </section>
-        {% endif %}
     </main>
 
-    <!-- JS -->
+    <!-- JavaScript for Branch Options -->
     <script>
         function updateBranchOptions() {
             const courseLevel = document.getElementById("course_level").value;
             const branchSelect = document.getElementById("branch");
-            branchSelect.innerHTML = '<option value="">Select Branch</option>';
-            const options = {
-                "BTech": ["Mechanical Engineering", "Computer Science", "Civil Engineering", "Electronics and Telecommunication"],
-                "Diploma": ["Mechanical Engineering", "Computer Science", "Civil Engineering", "Electronics and Telecommunication"],
-                "Degree": ["Science", "Commerce", "Arts"]
-            };
-            (options[courseLevel] || []).forEach(branch => {
-                const option = document.createElement("option");
-                option.value = branch;
-                option.text = branch;
-                branchSelect.appendChild(option);
-            });
-        }
-
-        function updateBranchOptionsAdd() {
-            const courseLevel = document.getElementById("course_level_add").value;
-            const branchSelect = document.getElementById("branch_add");
             branchSelect.innerHTML = '<option value="">Select Branch</option>';
             const options = {
                 "BTech": ["Mechanical Engineering", "Computer Science", "Civil Engineering", "Electronics and Telecommunication"],
