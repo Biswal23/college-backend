@@ -82,6 +82,13 @@
             </form>
         </section>
 
+        <!-- Navigation Buttons (Mobile) -->
+        <div class="nav-buttons">
+            <button class="nav-up" onclick="scrollBy(0, -100)">&#8679;</button>
+            <button class="nav-down" onclick="scrollBy(0, 100)">&#8681;</button>
+            <button class="back-to-top" onclick="scrollTo(0, 0)">Top</button>
+        </div>
+
         <!-- Search Results and Messages -->
         <section class="results-section">
             <!-- Display Messages -->
@@ -96,7 +103,7 @@
             {% if results %}
                 <h2>Search Results</h2>
                 {% if results|length > 5 %}
-                    <!-- Table for > 5 results (desktop) -->
+                    <!-- Table for > 5 results -->
                     <div class="results-table-container">
                         <table class="results-table">
                             <thead>
@@ -132,7 +139,7 @@
                         </table>
                     </div>
                 {% else %}
-                    <!-- List for ≤ 5 results or mobile -->
+                    <!-- List for ≤ 5 results -->
                     <ul class="results-list">
                         {% for result in results %}
                             <li>
@@ -174,6 +181,16 @@
                 branchSelect.appendChild(option);
             });
         }
+
+        // Show/hide back-to-top button based on scroll position
+        window.addEventListener('scroll', function() {
+            const backToTop = document.querySelector('.back-to-top');
+            if (window.scrollY > 200) {
+                backToTop.style.display = 'block';
+            } else {
+                backToTop.style.display = 'none';
+            }
+        });
     </script>
 </body>
 </html>
