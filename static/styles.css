@@ -88,44 +88,100 @@ button:hover {
     margin: 10px 0;
 }
 
-.results {
-    list-style: none;
-    padding: 0;
+/* Table styling (for > 5 results, desktop) */
+.results-table-container {
+    overflow-x: auto;
+    margin-bottom: 20px;
 }
 
-.results li {
+.results-table {
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 800px; /* Ensures table is wide enough */
+}
+
+.results-table th,
+.results-table td {
     border: 1px solid #ddd;
-    padding: 15px;
-    margin-bottom: 15px;
+    padding: 10px;
+    text-align: left;
+}
+
+.results-table th {
+    background-color: #f4f4f4;
+    font-weight: bold;
+}
+
+.results-table td.college-name,
+.results-table td .review-text {
+    max-width: 200px;
+    white-space: nowrap;
+    overflow-x: auto;
+    scrollbar-width: thin;
+}
+
+.results-table td.college-name::-webkit-scrollbar,
+.results-table td .review-text::-webkit-scrollbar {
+    height: 8px;
+}
+
+.results-table td.college-name::-webkit-scrollbar-thumb,
+.results-table td .review-text::-webkit-scrollbar-thumb {
+    background-color: #888;
     border-radius: 4px;
 }
 
-.results li strong.college-name {
+.results-table .review-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+/* List styling (for ≤ 5 results or mobile) */
+.results-list {
+    list-style: none;
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+}
+
+.results-list li {
+    flex: 1 1 300px;
+    max-width: 400px;
+    border: 1px solid #ddd;
+    padding: 15px;
+    border-radius: 4px;
+    box-sizing: border-box;
+}
+
+.results-list li strong.college-name {
     font-size: 1.2em;
     color: #2c3e50;
     display: block;
     max-width: 100%;
     white-space: nowrap;
     overflow-x: auto;
-    scrollbar-width: thin; /* For Firefox */
+    scrollbar-width: thin;
 }
 
-/* Scrollbar styling for WebKit browsers */
-.results li strong.college-name::-webkit-scrollbar {
+.results-list li strong.college-name::-webkit-scrollbar,
+.results-list li .review-text::-webkit-scrollbar {
     height: 8px;
 }
 
-.results li strong.college-name::-webkit-scrollbar-thumb {
+.results-list li strong.college-name::-webkit-scrollbar-thumb,
+.results-list li .review-text::-webkit-scrollbar-thumb {
     background-color: #888;
     border-radius: 4px;
 }
 
-.results ul {
+.results-list .review-list {
     list-style: none;
     padding-left: 20px;
 }
 
-.results ul li.review-text {
+.results-list .review-text {
     padding: 5px 0;
     max-width: 100%;
     white-space: nowrap;
@@ -133,16 +189,7 @@ button:hover {
     scrollbar-width: thin;
 }
 
-.results ul li.review-text::-webkit-scrollbar {
-    height: 8px;
-}
-
-.results ul li.review-text::-webkit-scrollbar-thumb {
-    background-color: #888;
-    border-radius: 4px;
-}
-
-/* Mobile layout (stacked form fields) */
+/* Mobile layout */
 @media (max-width: 768px) {
     .form-container {
         flex-direction: column;
@@ -156,5 +203,18 @@ button:hover {
     input,
     select {
         max-width: 100%;
+    }
+
+    .results-list li {
+        flex: 1 1 100%; /* Stack one-by-one on mobile */
+        max-width: 100%;
+    }
+
+    .results-table-container {
+        overflow-x: auto;
+    }
+
+    .results-table {
+        min-width: 600px; /* Allow scrolling on mobile */
     }
 }
