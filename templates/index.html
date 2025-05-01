@@ -40,17 +40,32 @@
 
                     <div class="form-group">
                         <label for="state">State:</label>
-                        <input type="text" id="state" name="state">
+                        <input type="text" id="state" name="state" list="state-suggestions">
+                        <datalist id="state-suggestions">
+                            {% for state in suggestions.state %}
+                                <option value="{{ state }}">
+                            {% endfor %}
+                        </datalist>
                     </div>
 
                     <div class="form-group">
                         <label for="location">Location:</label>
-                        <input type="text" id="location" name="location">
+                        <input type="text" id="location" name="location" list="location-suggestions">
+                        <datalist id="location-suggestions">
+                            {% for location in suggestions.location %}
+                                <option value="{{ location }}">
+                            {% endfor %}
+                        </datalist>
                     </div>
 
                     <div class="form-group">
                         <label for="college_name">College Name:</label>
-                        <input type="text" id="college_name" name="college_name">
+                        <input type="text" id="college_name" name="college_name" list="college-suggestions">
+                        <datalist id="college-suggestions">
+                            {% for college in suggestions.college_name %}
+                                <option value="{{ college }}">
+                            {% endfor %}
+                        </datalist>
                     </div>
 
                     <div class="form-group">
@@ -80,24 +95,63 @@
             <!-- Search Results -->
             {% if results %}
                 <h2>Search Results</h2>
-                <ul class="results">
-                    {% for result in results %}
-                        <li>
-                            <strong class="college-name">{{ result.name }}</strong><br>
-                            Course: {{ result.course_level }} - {{ result.branch }}<br>
-                            Location: {{ result.location }}, {{ result.state }}<br>
-                            Fees: ₹{{ result.fees }}<br>
-                            Cutoff: {{ result.min_score }}<br>
-                            Avg Rating: {{ result.avg_rating | round(1) }}<br>
-                            Reviews:
-                            <ul>
-                                {% for review in result.reviews %}
-                                    <li class="review-text">{{ review.review_text }} ({{ review.rating }}/5)</li>
+                {% if results|length > 5 %}
+                    <!-- Table for > 5 results (desktop) -->
+                    <div class="results-table-container">
+                        <table class="results-table">
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Course</th>
+                                    <th>Location</th>
+                                    <th>Fees (₹)</th>
+                                    <th>Cutoff</th>
+                                    <th>Avg Rating</th>
+                                    <th>Reviews</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for result in results %}
+                                    <tr>
+                                        <td class="college-name">{{ result.name }}</td>
+                                        <td>{{ result.course_level }} - {{ result.branch }}</td>
+                                        <td>{{ result.location }}, {{ result.state }}</td>
+                                        <td>{{ result.fees }}</td>
+                                        <td>{{ result.min_score }}</td>
+                                        <td>{{ result.avg_rating | round(1) }}</td>
+                                        <td>
+                                            <ul class="review-list">
+                                                {% for review in result.reviews %}
+                                                    <li class="review-text">{{ review.review_text }} ({{ review.rating }}/5)</li>
+                                                {% endfor %}
+                                            </ul>
+                                        </td>
+                                    </tr>
                                 {% endfor %}
-                            </ul>
-                        </li>
-                    {% endfor %}
-                </ul>
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <!-- List for ≤ 5 results or mobile -->
+                    <ul class="results-list">
+                        {% for result in results %}
+                            <li>
+                                <strong class="college-name">{{ result.name }}</strong><br>
+                                Course: {{ result.course_level }} - {{ result.branch }}<br>
+                                Location: {{ result.location }}, {{ result.state }}<br>
+                                Fees: ₹{{ result.fees }}<br>
+                                Cutoff: {{ result.min_score }}<br>
+                                Avg Rating: {{ result.avg_rating | round(1) }}<br>
+                                Reviews:
+                                <ul class="review-list">
+                                    {% for review in result.reviews %}
+                                        <li class="review-text">{{ review.review_text }} ({{ review.rating }}/5)</li>
+                                    {% endfor %}
+                                </ul>
+                            </li>
+                        {% endfor %}
+                    </ul>
+                {% endif %}
             {% endif %}
         </section>
     </main>
