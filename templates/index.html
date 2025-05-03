@@ -3,338 +3,419 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="title" content="{{ seo.title }}">
     <meta name="description" content="{{ seo.description }}">
     <meta name="keywords" content="{{ seo.keywords }}">
+    <meta name="author" content="College Finder">
     <meta property="og:title" content="{{ seo.og_title }}">
     <meta property="og:description" content="{{ seo.og_description }}">
+    <meta property="og:type" content="website">
     <meta property="og:url" content="{{ seo.og_url }}">
     <meta name="twitter:card" content="{{ seo.twitter_card }}">
     <title>{{ seo.title }}</title>
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <style>
-        body {
-            background: linear-gradient(to bottom, #f3f4f6, #e5e7eb);
+        .suggestion-list {
+            max-height: 200px;
+            overflow-y: auto;
+            background-color: white;
+            border: 1px solid #ccc;
+            position: absolute;
+            z-index: 10;
+            width: 100%;
+            display: none;
         }
-        .table-container {
-            overflow-x: auto;
-            max-width: 100%;
+        .suggestion-item {
+            padding: 8px;
+            cursor: pointer;
+        }
+        .suggestion-item:hover {
+            background-color: #f0f0f0;
+        }
+        .error-message {
+            color: red;
+            font-size: 0.875rem;
+        }
+        .success-message {
+            color: green;
+            font-size: 0.875rem;
+        }
+        #results-table th, #results-table td {
+            border: 1px solid #e5e7eb;
+            padding: 8px;
+            text-align: left;
+        }
+        #results-table th {
+            background-color: #f3f4f6;
+        }
+        #results-table tr:nth-child(even) {
+            background-color: #f9fafb;
         }
         #results-table {
             width: 100%;
-            border-collapse: separate;
-            border-spacing: 0;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            background: white;
-            border-radius: 8px;
-        }
-        #results-table th, #results-table td {
-            padding: 12px;
-            text-align: left;
-            border-bottom: 1px solid #e5e7eb;
-        }
-        #results-table th {
-            background: linear-gradient(to right, #3b82f6, #2563eb);
-            color: white;
-            font-weight: 600;
-            position: sticky;
-            top: 0;
-            z-index: 10;
-        }
-        #results-table tr:nth-child(even) {
-            background: #f9fafb;
-        }
-        #results-table tr:hover {
-            background: #eff6ff;
-            transition: background 0.2s;
-        }
-        .rating::before {
-            content: "⭐ ";
-        }
-        .suggestion-card {
-            background: white;
-            border: 1px solid #e5e7eb;
-            border-radius: 8px;
-            padding: 16px;
-            margin-bottom: 12px;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-            transition: transform 0.2s, box-shadow 0.2s;
-        }
-        .suggestion-card:hover {
-            transform: scale(1.02);
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-        }
-        .score-form {
-            background: white;
-            border-radius: 8px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            padding: 24px;
-        }
-        .score-form input {
-            border: 1px solid #d1d5db;
-            border-radius: 6px;
-            padding: 8px;
-            width: 100%;
-            max-width: 200px;
-        }
-        .score-form button {
-            background: linear-gradient(to right, #10b981, #059669);
-            border: none;
-            border-radius: 6px;
-            padding: 8px 16px;
-            color: white;
-            font-weight: 500;
-            transition: background 0.2s;
-        }
-        .score-form button:hover {
-            background: linear-gradient(to right, #059669, #047857);
-        }
-        @media (max-width: 640px) {
-            #results-table th, #results-table td {
-                font-size: 0.875rem;
-                padding: 8px;
-            }
-            .score-form {
-                padding: 16px;
-            }
-            .score-form input {
-                max-width: 150px;
-            }
-            .suggestion-card {
-                padding: 12px;
-            }
+            border-collapse: collapse;
+            margin-top: 1rem;
         }
     </style>
 </head>
-<body class="font-sans">
-    <div class="container mx-auto p-6 max-w-7xl">
-        <h1 class="text-4xl font-bold mb-8 text-center text-gray-800">Find Your Perfect College in India</h1>
+<body class="bg-gray-100 font-sans">
+    <div class="container mx-auto p-4">
+        <h1 class="text-3xl font-bold mb-6 text-center">College Finder</h1>
 
-        <!-- Existing Search Form -->
-        <form action="/" method="post" class="mb-12 bg-white p-8 rounded-lg shadow-lg">
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+        {% if error %}
+        <p class="error-message text-center">{{ error }}</p>
+        {% endif %}
+        {% if success_message %}
+        <p class="success-message text-center">{{ success_message }}</p>
+        {% endif %}
+
+        <!-- Search Form -->
+        <form method="POST" action="/" class="bg-white p-6 rounded-lg shadow-md mb-6">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                    <label for="course_level" class="block text-sm font-medium text-gray-700">Course Level</label>
-                    <select name="course_level" id="course_level" required class="mt-1 block w-full border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500">
+                    <label for="course_level" class="block text-sm font-medium text-gray-700">Course Level *</label>
+                    <select id="course_level" name="course_level" class="mt-1 block w-full p-2 border border-gray-300 rounded-md" required>
+                        <option value="" {% if not form_data.course_level %}selected{% endif %}>Select Course Level</option>
                         <option value="BTech" {% if form_data.course_level == 'BTech' %}selected{% endif %}>BTech</option>
                         <option value="Diploma" {% if form_data.course_level == 'Diploma' %}selected{% endif %}>Diploma</option>
                         <option value="Degree" {% if form_data.course_level == 'Degree' %}selected{% endif %}>Degree</option>
                     </select>
                 </div>
-                <div>
+                <div class="relative">
                     <label for="state" class="block text-sm font-medium text-gray-700">State</label>
-                    <input type="text" name="state" id="state" value="{{ form_data.state }}" list="state-suggestions" class="mt-1 block w-full border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500">
-                    <datalist id="state-suggestions">
-                        {% for state in suggestions.state %}
-                            <option value="{{ state }}">
-                        {% endfor %}
-                    </datalist>
+                    <input type="text" id="state" name="state" value="{{ form_data.state | default('') }}" class="mt-1 block w-full p-2 border border-gray-300 rounded-md" placeholder="Enter state">
+                    <div id="state-suggestions" class="suggestion-list"></div>
                 </div>
-                <div>
+                <div class="relative">
                     <label for="location" class="block text-sm font-medium text-gray-700">Location</label>
-                    <input type="text" name="location" id="location" value="{{ form_data.location }}" list="location-suggestions" class="mt-1 block w-full border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500">
-                    <datalist id="location-suggestions">
-                        {% for location in suggestions.location %}
-                            <option value="{{ location }}">
-                        {% endfor %}
-                    </datalist>
+                    <input type="text" id="location" name="location" value="{{ form_data.location | default('') }}" class="mt-1 block w-full p-2 border border-gray-300 rounded-md" placeholder="Enter location">
+                    <div id="location-suggestions" class="suggestion-list"></div>
                 </div>
-                <div>
+                <div class="relative">
                     <label for="college_name" class="block text-sm font-medium text-gray-700">College Name</label>
-                    <input type="text" name="college_name" id="college_name" value="{{ form_data.college_name }}" list="college-suggestions" class="mt-1 block w-full border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500">
-                    <datalist id="college-suggestions">
-                        {% for name in suggestions.college_name %}
-                            <option value="{{ name }}">
-                        {% endfor %}
-                    </datalist>
+                    <input type="text" id="college_name" name="college_name" value="{{ form_data.college_name | default('') }}" class="mt-1 block w-full p-2 border border-gray-300 rounded-md" placeholder="Enter college name">
+                    <div id="college_name-suggestions" class="suggestion-list"></div>
                 </div>
-                <div>
+                <div class="relative">
                     <label for="branch" class="block text-sm font-medium text-gray-700">Branch</label>
-                    <input type="text" name="branch" id="branch" value="{{ form_data.branch }}" list="branch-suggestions" class="mt-1 block w-full border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500">
-                    <datalist id="branch-suggestions">
-                        {% for branch in suggestions.branch %}
-                            <option value="{{ branch }}">
-                        {% endfor %}
-                    </datalist>
+                    <input type="text" id="branch" name="branch" value="{{ form_data.branch | default('') }}" class="mt-1 block w-full p-2 border border-gray-300 rounded-md" placeholder="Enter branch (e.g., Computer Science)">
+                    <div id="branch-suggestions" class="suggestion-list"></div>
                 </div>
                 <div>
-                    <label for="fees" class="block text-sm font-medium text-gray-700">Fees</label>
-                    <input type="number" name="fees" id="fees" value="{{ form_data.fees }}" class="mt-1 block w-full border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500">
+                    <label for="fees" class="block text-sm font-medium text-gray-700">Fees (in INR)</label>
+                    <input type="number" id="fees" name="fees" value="{{ form_data.fees | default('') }}" class="mt-1 block w-full p-2 border border-gray-300 rounded-md" placeholder="Enter fees">
                 </div>
                 <div>
                     <label for="score" class="block text-sm font-medium text-gray-700">Score</label>
-                    <input type="number" name="score" id="score" value="{{ form_data.score }}" class="mt-1 block w-full border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500">
+                    <input type="number" id="score" name="score" value="{{ form_data.score | default('') }}" class="mt-1 block w-full p-2 border border-gray-300 rounded-md" placeholder="Enter score">
                 </div>
             </div>
-            <button type="submit" class="mt-6 bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition">Search</button>
-        </form>
-
-        <!-- Score Filter Form for /predict_colleges/ -->
-        <form class="score-form mb-12" onsubmit="event.preventDefault(); fetchAndDisplayResults(document.getElementById('score-input').value);">
-            <div class="flex flex-col sm:flex-row items-center gap-4">
-                <label for="score-input" class="text-sm font-medium text-gray-700">Enter Your Score:</label>
-                <input type="number" id="score-input" required placeholder="e.g., 600">
-                <button type="submit">Search Colleges</button>
+            <div class="mt-4">
+                <button type="submit" class="w-full bg-blue-600 text-white p-2 rounded-md hover:bg-blue-700">Search</button>
             </div>
         </form>
 
-        <!-- Results Display -->
-        {% if error %}
-            <p class="text-red-500 mb-6 text-center">{{ error }}</p>
-        {% endif %}
-        {% if success_message %}
-            <p class="text-green-500 mb-6 text-center">{{ success_message }}</p>
-        {% endif %}
-        <div class="table-container mb-12">
+        <!-- Excel Upload Form -->
+        <div class="bg-white p-6 rounded-lg shadow-md mb-6">
+            <h2 class="text-xl font-semibold mb-4">Upload Excel File</h2>
+            <form id="excel-upload-form" enctype="multipart/form-data">
+                <div class="mb-4">
+                    <label for="excel_file" class="block text-sm font-medium text-gray-700">Select Excel File (.xlsx, .xls)</label>
+                    <input type="file" id="excel_file" name="file" accept=".xlsx,.xls" class="mt-1 block w-full p-2 border border-gray-300 rounded-md">
+                </div>
+                <div>
+                    <button type="submit" class="w-full bg-green-600 text-white p-2 rounded-md hover:bg-green-700">Upload Excel</button>
+                </div>
+            </form>
+            <p id="excel-upload-message" class="mt-2 text-center"></p>
+        </div>
+
+        <!-- Add College Form -->
+        <div class="bg-white p-6 rounded-lg shadow-md mb-6">
+            <h2 class="text-xl font-semibold mb-4">Add New College</h2>
+            <form method="POST" action="/add_college">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label for="name" class="block text-sm font-medium text-gray-700">College Name *</label>
+                        <input type="text" id="name" name="name" class="mt-1 block w-full p-2 border border-gray-300 rounded-md" required>
+                    </div>
+                    <div>
+                        <label for="state" class="block text-sm font-medium text-gray-700">State *</label>
+                        <input type="text" id="add_state" name="state" class="mt-1 block w-full p-2 border border-gray-300 rounded-md" required>
+                    </div>
+                    <div>
+                        <label for="location" class="block text-sm font-medium text-gray-700">Location *</label>
+                        <input type="text" id="add_location" name="location" class="mt-1 block w-full p-2 border border-gray-300 rounded-md" required>
+                    </div>
+                    <div>
+                        <label for="course_level" class="block text-sm font-medium text-gray-700">Course Level *</label>
+                        <select id="add_course_level" name="course_level" class="mt-1 block w-full p-2 border border-gray-300 rounded-md" required>
+                            <option value="">Select Course Level</option>
+                            <option value="BTech">BTech</option>
+                            <option value="Diploma">Diploma</option>
+                            <option value="Degree">Degree</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="branch" class="block text-sm font-medium text-gray-700">Branches * (comma-separated)</label>
+                        <input type="text" id="add_branch" name="branch" class="mt-1 block w-full p-2 border border-gray-300 rounded-md" required placeholder="e.g., Computer Science,Mechanical Engineering">
+                    </div>
+                    <div>
+                        <label for="fees" class="block text-sm font-medium text-gray-700">Fees (in INR) *</label>
+                        <input type="number" id="fees" name="fees" class="mt-1 block w-full p-2 border border-gray-300 rounded-md" required>
+                    </div>
+                    <div>
+                        <label for="cutoff_min" class="block text-sm font-medium text-gray-700">Cutoff Min *</label>
+                        <input type="number" id="cutoff_min" name="cutoff_min" class="mt-1 block w-full p-2 border border-gray-300 rounded-md" required>
+                    </div>
+                    <div>
+                        <label for="cutoff_max" class="block text-sm font-medium text-gray-700">Cutoff Max *</label>
+                        <input type="number" id="cutoff_max" name="cutoff_max" class="mt-1 block w-full p-2 border border-gray-300 rounded-md" required>
+                    </div>
+                    <div>
+                        <label for="review_text" class="block text-sm font-medium text-gray-700">Review Text</label>
+                        <textarea id="review_text" name="review_text" class="mt-1 block w-full p-2 border border-gray-300 rounded-md"></textarea>
+                    </div>
+                    <div>
+                        <label for="rating" class="block text-sm font-medium text-gray-700">Rating (1-5)</label>
+                        <input type="number" id="rating" name="rating" min="1" max="5" class="mt-1 block w-full p-2 border border-gray-300 rounded-md">
+                    </div>
+                </div>
+                <div class="mt-4">
+                    <button type="submit" class="w-full bg-green-600 text-white p-2 rounded-md hover:bg-green-700">Add College</button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Results Section -->
+        {% if results %}
+        <div class="bg-white p-6 rounded-lg shadow-md">
+            <h2 class="text-xl font-semibold mb-4">Search Results</h2>
+            {% if use_table %}
             <table id="results-table">
                 <thead>
                     <tr>
                         <th>Name</th>
                         <th>State</th>
                         <th>Location</th>
-                        <th>Course</th>
-                        <th>Branch</th>
-                        <th>Score Range</th>
+                        <th>Course Level</th>
+                        <th>Branches</th>
+                        <th>Min Score</th>
+                        <th>Max Score</th>
                         <th>Fees</th>
-                        <th>Rating</th>
-                        <th>Review</th>
+                        <th>Avg Rating</th>
                     </tr>
                 </thead>
-                <tbody></tbody>
+                <tbody>
+                    {% for result in results %}
+                    <tr>
+                        <td>{{ result.name }}</td>
+                        <td>{{ result.state }}</td>
+                        <td>{{ result.location }}</td>
+                        <td>{{ result.course_level }}</td>
+                        <td>{{ result.branch }}</td>
+                        <td>{{ result.min_score }}</td>
+                        <td>{{ result.max_score }}</td>
+                        <td>{{ result.fees }}</td>
+                        <td>{{ result.avg_rating | round(2) }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
             </table>
-        </div>
-
-        <!-- Suggestions Display -->
-        <h2 class="text-2xl font-semibold mb-4 text-gray-800">Suggested Colleges</h2>
-        <div id="suggestions-list" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"></div>
-
-        <!-- Jinja2 Results (for POST /) -->
-        {% if results %}
-            {% if use_table %}
-                <div class="table-container mt-12">
-                    <table class="min-w-full bg-white rounded-lg shadow">
-                        <thead>
-                            <tr class="bg-blue-600 text-white">
-                                <th class="py-3 px-4">Name</th>
-                                <th class="py-3 px-4">State</th>
-                                <th class="py-3 px-4">Location</th>
-                                <th class="py-3 px-4">Course</th>
-                                <th class="py-3 px-4">Branch</th>
-                                <th class="py-3 px-4">Min Score</th>
-                                <th class="py-3 px-4">Max Score</th>
-                                <th class="py-3 px-4">Fees</th>
-                                <th class="py-3 px-4">Rating</th>
-                                <th class="py-3 px-4">Reviews</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for result in results %}
-                                <tr class="hover:bg-blue-50">
-                                    <td class="py-3 px-4">{{ result.name }}</td>
-                                    <td class="py-3 px-4">{{ result.state }}</td>
-                                    <td class="py-3 px-4">{{ result.location }}</td>
-                                    <td class="py-3 px-4">{{ result.course_level }}</td>
-                                    <td class="py-3 px-4">{{ result.branch }}</td>
-                                    <td class="py-3 px-4">{{ result.min_score }}</td>
-                                    <td class="py-3 px-4">{{ result.max_score }}</td>
-                                    <td class="py-3 px-4">{{ result.fees }}</td>
-                                    <td class="py-3 px-4">{{ result.avg_rating | round(1) }}</td>
-                                    <td class="py-3 px-4">
-                                        {% for review in result.reviews %}
-                                            <p>{{ review.review_text }} ({{ review.rating }})</p>
-                                        {% endfor %}
-                                    </td>
-                                </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
             {% else %}
-                {% for result in results %}
-                    <div class="bg-white p-6 mb-4 rounded-lg shadow">
-                        <h2 class="text-xl font-bold text-gray-800">{{ result.name }}</h2>
-                        <p><strong>State:</strong> {{ result.state }}</p>
-                        <p><strong>Location:</strong> {{ result.location }}</p>
-                        <p><strong>Course:</strong> {{ result.course_level }}</p>
-                        <p><strong>Branch:</strong> {{ result.branch }}</p>
-                        <p><strong>Score Range:</strong> {{ result.min_score }} - {{ result.max_score }}</p>
-                        <p><strong>Fees:</strong> {{ result.fees }}</p>
-                        <p><strong>Rating:</strong> {{ result.avg_rating | round(1) }}</p>
-                        <p><strong>Reviews:</strong></p>
-                        {% for review in result.reviews %}
-                            <p>{{ review.review_text }} ({{ review.rating }})</p>
-                        {% endfor %}
-                    </div>
-                {% endfor %}
+            {% for result in results %}
+            <div class="mb-4 p-4 border border-gray-200 rounded-md">
+                <h3 class="text-lg font-semibold">{{ result.name }}</h3>
+                <p><strong>State:</strong> {{ result.state }}</p>
+                <p><strong>Location:</strong> {{ result.location }}</p>
+                <p><strong>Course Level:</strong> {{ result.course_level }}</p>
+                <p><strong>Branches:</strong> {{ result.branch }}</p>
+                <p><strong>Min Score:</strong> {{ result.min_score }}</p>
+                <p><strong>Max Score:</strong> {{ result.max_score }}</p>
+                <p><strong>Fees:</strong> {{ result.fees }}</p>
+                <p><strong>Average Rating:</strong> {{ result.avg_rating | round(2) }}</p>
+                {% if result.reviews %}
+                <p><strong>Reviews:</strong></p>
+                <ul class="list-disc pl-5">
+                    {% for review in result.reviews %}
+                    <li>{{ review.review_text }} (Rating: {{ review.rating }})</li>
+                    {% endfor %}
+                </ul>
+                {% endif %}
+            </div>
+            {% endfor %}
             {% endif %}
+        </div>
         {% endif %}
+
     </div>
 
     <script>
-        async function fetchAndDisplayResults(score) {
-            try {
-                const url = `/api/results?score=${score}`;
-                const response = await fetch(url);
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-                const data = await response.json();
+        // Autosuggestions
+        const fields = ['college_name', 'location', 'state', 'branch'];
+        fields.forEach(field => {
+            const input = $(`#${field}`);
+            const suggestionsDiv = $(`#${field}-suggestions`);
 
-                // Populate Results
-                const tableBody = document.querySelector("#results-table tbody");
-                tableBody.innerHTML = ""; // Clear old
-                if (data.results.length === 0) {
-                    tableBody.innerHTML = '<tr><td colspan="9" class="text-center py-4 text-gray-500">No colleges found for this score.</td></tr>';
-                } else {
-                    data.results.forEach(college => {
-                        const reviewText = college.reviews.length > 0 ? college.reviews[0].review_text : "No review";
-                        const row = `
+            input.on('input', async () => {
+                const value = input.val().trim();
+                if (value.length < 2) {
+                    suggestionsDiv.hide();
+                    return;
+                }
+
+                try {
+                    const response = await fetch('/api/suggestions');
+                    const data = await response.json();
+                    const suggestions = data[field].filter(s => s.toLowerCase().includes(value.toLowerCase()));
+
+                    suggestionsDiv.empty();
+                    if (suggestions.length > 0) {
+                        suggestions.forEach(s => {
+                            $('<div>', {
+                                class: 'suggestion-item',
+                                text: s,
+                                click: () => {
+                                    input.val(s);
+                                    suggestionsDiv.hide();
+                                }
+                            }).appendTo(suggestionsDiv);
+                        });
+                        suggestionsDiv.show();
+                    } else {
+                        suggestionsDiv.hide();
+                    }
+                } catch (error) {
+                    console.error('Error fetching suggestions:', error);
+                }
+            });
+
+            $(document).click(e => {
+                if (!input.is(e.target) && !suggestionsDiv.is(e.target) && suggestionsDiv.has(e.target).length === 0) {
+                    suggestionsDiv.hide();
+                }
+            });
+        });
+
+        // Dynamic results on score input
+        const scoreInput = $('#score');
+        scoreInput.on('input', async () => {
+            const score = scoreInput.val().trim();
+            if (!score || isNaN(score)) {
+                $('#results').empty();
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/results?score=${encodeURIComponent(score)}`);
+                const data = await response.json();
+                const results = data.results;
+
+                $('#results').empty();
+                if (results.length === 0) {
+                    $('#results').html('<p class="text-center">No colleges found for this score.</p>');
+                    return;
+                }
+
+                const useTable = results.length > 5;
+                if (useTable) {
+                    let table = `
+                        <table id="results-table">
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>State</th>
+                                    <th>Location</th>
+                                    <th>Course Level</th>
+                                    <th>Branches</th>
+                                    <th>Min Score</th>
+                                    <th>Max Score</th>
+                                    <th>Fees</th>
+                                    <th>Avg Rating</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                    `;
+                    results.forEach(r => {
+                        table += `
                             <tr>
-                                <td>${college.name}</td>
-                                <td>${college.state}</td>
-                                <td>${college.location}</td>
-                                <td>${college.course_level}</td>
-                                <td>${college.branch}</td>
-                                <td>${college.min_score} – ${college.max_score}</td>
-                                <td>₹${college.fees}</td>
-                                <td class="rating">${college.avg_rating.toFixed(1)}</td>
-                                <td>${reviewText}</td>
+                                <td>${r.name}</td>
+                                <td>${r.state}</td>
+                                <td>${r.location}</td>
+                                <td>${r.course_level}</td>
+                                <td>${r.branch}</td>
+                                <td>${r.min_score}</td>
+                                <td>${r.max_score}</td>
+                                <td>${r.fees}</td>
+                                <td>${r.avg_rating.toFixed(2)}</td>
                             </tr>
                         `;
-                        tableBody.innerHTML += row;
                     });
-                }
-
-                // Populate Suggestions
-                const suggestionList = document.getElementById("suggestions-list");
-                suggestionList.innerHTML = "";
-                if (data.suggestions.length === 0) {
-                    suggestionList.innerHTML = '<p class="text-center text-gray-500">No suggestions available.</p>';
+                    table += '</tbody></table>';
+                    $('#results').html(table);
                 } else {
-                    data.suggestions.forEach(suggestion => {
-                        const card = `
-                            <div class="suggestion-card">
-                                <strong class="text-lg text-gray-800">${suggestion.name}</strong><br>
-                                <span class="text-gray-600">${suggestion.branch} - ${suggestion.location}, ${suggestion.state}</span><br>
-                                <span class="text-gray-500">Fees: ₹${suggestion.fees}</span>
+                    results.forEach(r => {
+                        let reviewsHtml = r.reviews.length > 0
+                            ? '<p><strong>Reviews:</strong></p><ul class="list-disc pl-5">' +
+                              r.reviews.map(review => `<li>${review.review_text} (Rating: ${review.rating})</li>`).join('') +
+                              '</ul>'
+                            : '';
+                        $('#results').append(`
+                            <div class="mb-4 p-4 border border-gray-200 rounded-md">
+                                <h3 class="text-lg font-semibold">${r.name}</h3>
+                                <p><strong>State:</strong> ${r.state}</p>
+                                <p><strong>Location:</strong> ${r.location}</p>
+                                <p><strong>Course Level:</strong> ${r.course_level}</p>
+                                <p><strong>Branches:</strong> ${r.branch}</p>
+                                <p><strong>Min Score:</strong> ${r.min_score}</p>
+                                <p><strong>Max Score:</strong> ${r.max_score}</p>
+                                <p><strong>Fees:</strong> ${r.fees}</p>
+                                <p><strong>Average Rating:</strong> ${r.avg_rating.toFixed(2)}</p>
+                                ${reviewsHtml}
                             </div>
-                        `;
-                        suggestionList.innerHTML += card;
+                        `);
                     });
                 }
             } catch (error) {
                 console.error('Error fetching results:', error);
-                const tableBody = document.querySelector("#results-table tbody");
-                tableBody.innerHTML = '<tr><td colspan="9" class="text-center py-4 text-red-500">Error loading results. Please try again.</td></tr>';
-                const suggestionList = document.getElementById("suggestions-list");
-                suggestionList.innerHTML = '<p class="text-center text-red-500">Error loading suggestions.</p>';
+                $('#results').html('<p class="error-message text-center">Error fetching results.</p>');
             }
-        }
+        });
 
-        // Run on page load with default score
-        window.onload = () => {
-            fetchAndDisplayResults(600);
-        };
+        // Excel Upload Form Submission
+        $('#excel-upload-form').on('submit', async (e) => {
+            e.preventDefault();
+            const formData = new FormData();
+            const fileInput = $('#excel_file')[0];
+            if (!fileInput.files.length) {
+                $('#excel-upload-message').removeClass('success-message').addClass('error-message').text('Please select an Excel file.');
+                return;
+            }
+            formData.append('file', fileInput.files[0]);
+
+            try {
+                $('#excel-upload-message').text('Uploading...');
+                const response = await fetch('/api/upload_excel', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await response.json();
+
+                if (response.ok) {
+                    $('#excel-upload-message').removeClass('error-message').addClass('success-message').text(
+                        `✅ Excel file processed: ${data.data.summary.inserted_colleges} colleges inserted, ` +
+                        `${data.data.summary.updated_colleges} colleges updated, ` +
+                        `${data.data.summary.inserted_reviews} reviews inserted.`
+                    );
+                    $('#excel_file').val(''); // Reset file input
+                } else {
+                    $('#excel-upload-message').removeClass('success-message').addClass('error-message').text(data.error || 'Error processing Excel file.');
+                }
+            } catch (error) {
+                console.error('Error uploading Excel file:', error);
+                $('#excel-upload-message').removeClass('success-message').addClass('error-message').text('Error uploading Excel file.');
+            }
+        });
     </script>
 </body>
 </html>
