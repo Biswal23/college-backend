@@ -90,6 +90,7 @@ def process_excel_file(file_content: bytes) -> dict:
     Process an Excel file, convert to JSON, and update the database.
     Supports multiple branches in separate columns or delimited string.
     Returns a JSON representation of the processed data.
+    Note: cutoff_min and cutoff_max are rank-based (e.g., admission ranks).
     """
     db = SessionLocal()
     try:
@@ -226,8 +227,7 @@ def process_excel_file(file_content: bytes) -> dict:
             if college_data['cutoff_min'] > college_data['cutoff_max']:
                 logger.warning(f"Invalid cutoff range for college '{college_data['name']}'")
                 continue
-            if college_data['cutoff_max'] > 1000000:
-                logger.warning(f"High cutoff_max '{college_data['cutoff_max']}' for college '{college_data['name']}'; possible rank-based system")
+            # Removed high cutoff_max warning as cutoffs are confirmed to be rank-based
 
             colleges_data.append(college_data)
 
