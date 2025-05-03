@@ -22,7 +22,7 @@ def initialize_database():
             print("✅ Database already initialized with data.")
             return
 
-        # Sample colleges
+        # Sample colleges with cutoff_min and cutoff_max
         colleges = [
             College(
                 name="Tech College Mumbai",
@@ -31,7 +31,8 @@ def initialize_database():
                 course_level="BTech",
                 branch="Computer Science",
                 fees=150000,
-                cutoff=1200
+                cutoff_min=1100,
+                cutoff_max=1300
             ),
             College(
                 name="Engineering College Pune",
@@ -40,7 +41,8 @@ def initialize_database():
                 course_level="BTech",
                 branch="Mechanical Engineering",
                 fees=120000,
-                cutoff=1100
+                cutoff_min=1000,
+                cutoff_max=1200
             ),
             College(
                 name="Science College Bangalore",
@@ -49,7 +51,8 @@ def initialize_database():
                 course_level="Degree",
                 branch="Science",
                 fees=80000,
-                cutoff=900
+                cutoff_min=800,
+                cutoff_max=1000
             ),
             College(
                 name="Commerce Institute Chennai",
@@ -58,16 +61,18 @@ def initialize_database():
                 course_level="Degree",
                 branch="Commerce",
                 fees=90000,
-                cutoff=850
+                cutoff_min=750,
+                cutoff_max=950
             ),
             College(
-                name="Polytechnic Institute Delhi",
-                state="Delhi",
-                location="New Delhi",
+                name="Polytechnic Institute",
+                state="Gujarat",
+                location="Ahmedabad",
                 course_level="Diploma",
                 branch="Civil Engineering",
-                fees=60000,
-                cutoff=700
+                fees=90000,
+                cutoff_min=500,
+                cutoff_max=1500
             ),
             College(
                 name="Tech Institute Hyderabad",
@@ -76,7 +81,8 @@ def initialize_database():
                 course_level="BTech",
                 branch="Electronics and Telecommunication",
                 fees=140000,
-                cutoff=1150
+                cutoff_min=1050,
+                cutoff_max=1250
             ),
             College(
                 name="Arts College Kolkata",
@@ -85,7 +91,8 @@ def initialize_database():
                 course_level="Degree",
                 branch="Arts",
                 fees=70000,
-                cutoff=800
+                cutoff_min=700,
+                cutoff_max=900
             ),
             College(
                 name="Engineering Academy Jaipur",
@@ -94,7 +101,8 @@ def initialize_database():
                 course_level="BTech",
                 branch="Computer Science",
                 fees=130000,
-                cutoff=1250
+                cutoff_min=1150,
+                cutoff_max=1350
             ),
             College(
                 name="Diploma College Ahmedabad",
@@ -103,7 +111,8 @@ def initialize_database():
                 course_level="Diploma",
                 branch="Mechanical Engineering",
                 fees=65000,
-                cutoff=750
+                cutoff_min=650,
+                cutoff_max=850
             ),
             College(
                 name="Science Academy Bhopal",
@@ -112,7 +121,8 @@ def initialize_database():
                 course_level="Degree",
                 branch="Science",
                 fees=85000,
-                cutoff=950
+                cutoff_min=850,
+                cutoff_max=1050
             ),
         ]
 
@@ -148,7 +158,7 @@ def initialize_database():
                 rating=4.0
             ),
             Review(
-                college_name="Polytechnic Institute Delhi",
+                college_name="Polytechnic Institute",
                 review_text="Practical training is top-notch.",
                 rating=4.3
             ),
