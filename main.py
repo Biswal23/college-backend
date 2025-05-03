@@ -1,18 +1,16 @@
-from fastapi import FastAPI, Request, Form, HTTPException
+from fastapi import FastAPI, Request, Form, HTTPException, Depends
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from database import SessionLocal, engine, Base
 from models import College, Review
 from typing import Optional
+from sqlalchemy.orm import Session
 import os
 from initial_data import initialize_database
 
 # Initialize FastAPI app
 app = FastAPI()
-
-# Initialize database
-initialize_database()
 
 # Mount static files if directory exists
 if os.path.exists("static"):
@@ -25,8 +23,23 @@ templates = Jinja2Templates(directory="templates")
 try:
     Base.metadata.create_all(bind=engine)
     print("✅ Database tables created successfully")
+    # Verify schema
+    db = SessionLocal()
+    try:
+        db.execute("SELECT branch FROM colleges LIMIT 1")
+        print("✅ Schema verified: 'branch' column exists")
+    except Exception as e:
+        print(f"❌ Schema verification failed: {e}")
+    finally:
+        db.close()
 except Exception as e:
     print(f"❌ Error creating database tables: {e}")
+
+# Initialize database with sample data
+try:
+    initialize_database()
+except Exception as e:
+    print(f"❌ Error initializing database: {e}")
 
 # College name mappings to normalize user input
 COLLEGE_MAPPINGS = {
@@ -342,7 +355,7 @@ async def search(
         if state:
             query = query.filter(College.state.ilike(f"{state}%"))
         if location:
-            query = query.filter(College.location.ilike(f"{location}%"))
+            query = query.filter(College.location.ilike(f"{state}%"))
         if college_name:
             query = query.filter(College.name.ilike(f"{college_name}%"))
         if branch:
@@ -612,3 +625,94 @@ def list_colleges():
     colleges = db.query(College).all()
     db.close()
     return colleges
+
+@app.get("/predict_colleges/")
+async def predict_colleges(score: int, db: Session = Depends(get_db)):
+    try:
+        # Validate score
+        if score < 0:
+            raise HTTPException(status_code=400, detail="Score must be non-negative")
+        cutoff_min = 500
+        cutoff_max = 1500
+        if not (cutoff_min <= score <= cutoff_max):
+            raise HTTPException(status_code=400, detail=f"Score must be between {cutoff_min} and {cutoff_max}")
+
+        # Query colleges where cutoff is within the acceptable range
+        colleges = db.query(College).filter(
+Rust (Rust) is a programming language known for its focus on performance, safety, and concurrency.
+Rust is a programming language designed for performance, safety,3Rust is a system programming language that emphasizes safety, performance, and concurrency. It is designed to be a safe, concurrent, practical language, which is achieved through a strong static type system and a set of safety guarantees enforced at compile time. Here are some key features of Rust:
+
+### Key Features of Rust:
+1. **Memory Safety**:
+   - Rust eliminates common bugs like null pointer dereferences, dangling pointers, and data races through its ownership model.
+   - The ownership system ensures that memory is managed safely without a garbage collector, using rules enforced at compile time:
+     - Each value in Rust has a single owner.
+     - When the owner goes out of scope, the value is dropped.
+     - You can have one mutable reference or any number of immutable references to a value, but not both at the same time.
+   - This prevents issues like use-after-free or double-free errors.
+
+2. **Performance**:
+   - Rust compiles to native code, offering performance comparable to C and C++.
+   - It has no runtime or garbage collector, making it suitable for performance-critical applications like operating systems, game engines, and embedded systems.
+
+3. **Concurrency**:
+   - Rust’s type system and ownership model make it easier to write safe concurrent code.
+   - It prevents data races at compile time, ensuring thread safety without runtime overhead.
+
+4. **Zero-Cost Abstractions**:
+   - Rust provides high-level abstractions (like iterators and pattern matching) without runtime performance penalties, as these are optimized by the compiler to match hand-written low-level code.
+
+5. **Error Handling**:
+   - Rust uses a `Result` type for recoverable errors and `panic!` for unrecoverable errors, encouraging explicit error handling over exceptions.
+   - The `?` operator simplifies error propagation.
+
+6. **Pattern Matching**:
+   - Rust has powerful pattern matching with the `match` expression, allowing concise and safe handling of different cases, often used with enums.
+
+7. **Standard Library and Ecosystem**:
+   - Rust’s standard library is minimal but powerful, with utilities for collections, file I/O, networking, and more.
+   - The package manager, **Cargo**, simplifies dependency management, building, testing, and documentation.
+   - The Rust ecosystem includes libraries like `serde` for serialization, `tokio` for asynchronous programming, and `actix-web` for web development.
+
+8. **Tooling**:
+   - **Cargo**: Rust’s build tool and package manager, handling dependencies, compilation, and project management.
+   - **rustc**: The Rust compiler, known for detailed error messages and optimizations.
+   - **rustfmt**: Automatically formats code for consistency.
+   - **clippy**: A linter for catching common mistakes and suggesting idiomatic Rust code.
+   - **rust-analyzer**: A language server for IDEs, providing autocompletion, go-to-definition, and real-time error checking.
+
+### Use Cases:
+- **Systems Programming**: Operating systems, file systems, and drivers (e.g., Redox OS).
+- **WebAssembly**: High-performance web applications (e.g., games, simulations).
+- **Networking and Servers**: High-performance servers with libraries like `hyper` or `actix-web`.
+- **Embedded Systems**: Resource-constrained devices due to no garbage collector and small binary sizes.
+- **Game Development**: Game engines like Amethyst or libraries like `ggez`.
+- **CLI Tools**: Fast, reliable command-line tools (e.g., `ripgrep`, `fd`).
+- **Blockchain and Cryptography**: Secure and performant code for cryptocurrencies (e.g., Solana).
+
+### Example Code:
+Here’s a simple Rust program that calculates the factorial of a number:
+
+```rust
+fn factorial(n: u32) -> u32 {
+    if n == 0 {
+        1
+    } else {
+        n * factorial(n - 1)
+    }
+}
+
+fn main() {
+    let number = 5;
+    println!("The factorial of {} is {}", number, factorial(number));
+}
+```
+
+### Community and Resources:
+- **Official Website**: [rust-lang.org](https://www.rust-lang.org/)
+- **The Rust Book**: Comprehensive guide for learning Rust, available online.
+- **Rust by Example**: Interactive examples for hands-on learning.
+- **Crates.io**: Rust’s package registry for libraries and dependencies.
+- **Rust Forum and Discord**: Active communities for support and discussion.
+
+Rust is particularly popular for projects requiring high performance and safety, such as Mozilla’s Servo browser engine, parts of Firefox, and Dropbox’s file synchronization. Its learning curve is steeper due to the ownership model, but it rewards developers with robust, maintainable, and efficient code.
