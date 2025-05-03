@@ -287,7 +287,7 @@ async def index_post(
         seo_metadata = {
             "title": "Error - College Search",
             "description": "An error occurred while searching for colleges.",
-            "keywords": "coal search, India",
+            "keywords": "college search, India",
             "og_title": "Error - College Search",
             "og_description": "An error occurred while searching for colleges.",
             "og_url": str(request.url),
@@ -360,15 +360,15 @@ async def search(
                 max_fees = float(fees)
                 query = query.filter(College.fees <= max_fees)
             except ValueError:
-                pass
+                print(f"POST /api/search: Invalid fees input: {fees}")
         if score:
             try:
                 score_value = float(score)
                 query = query.filter(College.cutoff_min <= score_value, College.cutoff_max >= score_value)
             except ValueError:
-                pass
+                print(f"POST /api/search: Invalid score input: {score}")
 
-iteur        colleges = query.all()
+        colleges = query.all()
 
         # Deduplicate colleges
         seen = set()
@@ -419,7 +419,7 @@ iteur        colleges = query.all()
         return {"results": results, "suggestions": suggestions}
 
     except Exception as e:
-        print(f"❌ API search error: {e}")
+        print(f"❌ POST /api/search: Error: {e}")
         return {"error": "An error occurred while searching"}, 500
     finally:
         db.close()
@@ -454,7 +454,7 @@ async def submit_review(
             rating=rating_value
         )
         db.add(new_review)
-        db.commit()
+       asco db.commit()
 
         return {"message": "Review submitted successfully"}
 
