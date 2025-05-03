@@ -6,6 +6,7 @@ from database import SessionLocal, engine, Base
 from models import College, Review
 from typing import Optional
 from sqlalchemy.orm import Session
+from sqlalchemy import or_
 import os
 from initial_data import initialize_database, process_excel_file
 import logging
@@ -74,11 +75,15 @@ async def index(request: Request):
             logger.info(f"GET /: Colleges: {[c.name for c in colleges]}")
 
         # Generate suggestions
+        all_branches = set()
+        for college in colleges:
+            if college.branch:
+                all_branches.update(b.strip() for b in college.branch.split(','))
         all_suggestions = {
             "college_name": sorted([c.name for c in colleges], key=str.lower),
             "location": sorted([c.location for c in colleges if c.location], key=str.lower),
             "state": sorted([c.state for c in colleges if c.state], key=str.lower),
-            "branch": sorted([c.branch for c in colleges if c.branch], key=str.lower)
+            "branch": sorted(all_branches, key=str.lower)
         }
         logger.info(f"GET /: Initial suggestions: {all_suggestions}")
         if not any(all_suggestions.values()):
@@ -167,7 +172,8 @@ async def index_post(
         if college_name:
             query = query.filter(College.name == college_name)
         if branch:
-            query = query.filter(College.branch == branch)
+            # Match any branch in the comma-separated list
+            query = query.filter(College.branch.contains(branch))
         if fees:
             try:
                 fees_value = float(fees)
@@ -201,7 +207,7 @@ async def index_post(
                 "state": college.state,
                 "location": college.location,
                 "course_level": college.course_level,
-                "branch": college.branch,
+                "branch": college.branch,  # Comma-separated string
                 "min_score": college.cutoff_min,
                 "max_score": college.cutoff_max,
                 "fees": college.fees,
@@ -214,7 +220,10 @@ async def index_post(
         existing_college_names = [c.name for c in all_colleges]
         existing_locations = [c.location for c in all_colleges if c.location]
         existing_states = [c.state for c in all_colleges if c.state]
-        existing_branches = [c.branch for c in all_colleges if c.branch]
+        existing_branches = set()
+        for c in all_colleges:
+            if c.branch:
+                existing_branches.update(b.strip() for b in c.branch.split(','))
 
         suggestions = {
             "college_name": sorted(
@@ -230,7 +239,7 @@ async def index_post(
                 key=lambda x: x.lower()
             ),
             "branch": sorted(
-                set(c.branch for c in colleges if c.branch and (not branch or branch == c.branch)),
+                set(b.strip() for c in colleges for b in c.branch.split(',') if c.branch and (not branch or branch in c.branch)),
                 key=lambda x: x.lower()
             )
         }
@@ -247,7 +256,7 @@ async def index_post(
                 error_message = f"Result fetching error: No matching colleges found for location '{location}'."
             elif college_name and college_name not in existing_college_names:
                 error_message = f"Result fetching error: No matching colleges found for college name '{college_name}'."
-            elif branch and branch not in existing_branches:
+            elif branch and not any(branch in b for c in all_colleges for b in c.branch.split(',')):
                 error_message = f"Result fetching error: No matching colleges found for branch '{branch}'."
             elif score and not score.isdigit():
                 error_message = f"Result fetching error: Score '{score}' is invalid."
@@ -359,7 +368,8 @@ async def search(
         if college_name:
             query = query.filter(College.name == college_name)
         if branch:
-            query = query.filter(College.branch == branch)
+            # Match any branch in the comma-separated list
+            query = query.filter(College.branch.contains(branch))
         if fees:
             try:
                 max_fees = float(fees)
@@ -393,7 +403,7 @@ async def search(
                 "state": college.state,
                 "location": college.location,
                 "course_level": college.course_level,
-                "branch": college.branch,
+                "branch": college.branch,  # Comma-separated string
                 "min_score": college.cutoff_min,
                 "max_score": college.cutoff_max,
                 "fees": college.fees,
@@ -402,6 +412,10 @@ async def search(
 
         # Generate autosuggestions
         all_colleges = db.query(College).all()
+        all_branches = set()
+        for c in all_colleges:
+            if c.branch:
+                all_branches.update(b.strip() for b in c.branch.split(','))
         suggestions = {
             "college_name": sorted(
                 [c.name for c in all_colleges if not college_name or college_name == c.name],
@@ -416,7 +430,7 @@ async def search(
                 key=str.lower
             ),
             "branch": sorted(
-                [c.branch for c in all_colleges if c.branch and (not branch or branch == c.branch)],
+                list(all_branches),
                 key=str.lower
             )
         }
@@ -508,7 +522,7 @@ async def add_college(
     state: str = Form(...),
     location: str = Form(...),
     course_level: str = Form(...),
-    branch: str = Form(...),
+    branch: str = Form(...),  # Accept comma-separated branches
     fees: float = Form(...),
     cutoff_min: float = Form(...),
     cutoff_max: float = Form(...),
@@ -524,14 +538,17 @@ async def add_college(
         if course_level not in allowed_course_levels:
             raise HTTPException(status_code=400, detail=f"Course level must be one of {allowed_course_levels}.")
 
-        # Validate branch based on course_level
+        # Validate branches
         allowed_branches = {
             "BTech": ["Mechanical Engineering", "Computer Science", "Civil Engineering", "Electronics and Telecommunication"],
             "Diploma": ["Mechanical Engineering", "Computer Science", "Civil Engineering", "Electronics and Telecommunication"],
             "Degree": ["Science", "Commerce", "Arts"]
         }
-        if branch not in allowed_branches[course_level]:
-            raise HTTPException(status_code=400, detail=f"Branch must be one of {allowed_branches[course_level]} for {course_level}.")
+        branch_list = [b.strip() for b in branch.split(',') if b.strip()]
+        valid_branches = [b for b in branch_list if b in allowed_branches[course_level]]
+        if not valid_branches:
+            raise HTTPException(status_code=400, detail=f"Branches must be valid for {course_level}: {allowed_branches[course_level]}")
+        branch = ','.join(sorted(set(valid_branches)))
 
         if fees < 0:
             raise HTTPException(status_code=400, detail="Fees cannot be negative.")
@@ -575,11 +592,15 @@ async def add_college(
 
         # Generate updated suggestions
         all_colleges = db.query(College).all()
+        all_branches = set()
+        for c in all_colleges:
+            if c.branch:
+                all_branches.update(b.strip() for b in c.branch.split(','))
         suggestions = {
             "college_name": sorted([c.name for c in all_colleges], key=str.lower),
             "location": sorted([c.location for c in all_colleges if c.location], key=str.lower),
             "state": sorted([c.state for c in all_colleges if c.state], key=str.lower),
-            "branch": sorted([c.branch for c in all_colleges if c.branch], key=str.lower)
+            "branch": sorted(all_branches, key=str.lower)
         }
 
         # SEO metadata
@@ -638,11 +659,15 @@ async def get_suggestions():
     db = SessionLocal()
     try:
         colleges = db.query(College).all()
+        all_branches = set()
+        for c in colleges:
+            if c.branch:
+                all_branches.update(b.strip() for b in c.branch.split(','))
         suggestions = {
             "college_name": sorted([c.name for c in colleges], key=str.lower),
             "location": sorted([c.location for c in colleges if c.location], key=str.lower),
             "state": sorted([c.state for c in colleges if c.state], key=str.lower),
-            "branch": sorted([c.branch for c in colleges if c.branch], key=str.lower)
+            "branch": sorted(all_branches, key=str.lower)
         }
         return suggestions
     finally:
@@ -682,7 +707,7 @@ async def predict_colleges(score: int, db: Session = Depends(get_db)):
                 "state": college.state,
                 "location": college.location,
                 "course_level": college.course_level,
-                "branch": college.branch,
+                "branch": college.branch,  # Comma-separated string
                 "min_score": college.cutoff_min,
                 "max_score": college.cutoff_max,
                 "fees": college.fees,
@@ -720,7 +745,7 @@ async def get_results(score: int, db: Session = Depends(get_db)):
                 "state": college.state,
                 "location": college.location,
                 "course_level": college.course_level,
-                "branch": college.branch,
+                "branch": college.branch,  # Comma-separated string
                 "min_score": college.cutoff_min,
                 "max_score": college.cutoff_max,
                 "fees": college.fees,
@@ -728,8 +753,12 @@ async def get_results(score: int, db: Session = Depends(get_db)):
                 "reviews": [{"review_text": r.review_text, "rating": r.rating} for r in reviews[:2]]
             })
 
-        # Generate suggestions (all colleges for simplicity, could filter by proximity to score)
+        # Generate suggestions
         all_colleges = db.query(College).all()
+        all_branches = set()
+        for c in all_colleges:
+            if c.branch:
+                all_branches.update(b.strip() for b in c.branch.split(','))
         suggestions = [
             {
                 "name": c.name,
