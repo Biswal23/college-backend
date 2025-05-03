@@ -287,7 +287,7 @@ async def index_post(
         seo_metadata = {
             "title": "Error - College Search",
             "description": "An error occurred while searching for colleges.",
-            "keywords": "college search, India",
+            "keywords": "coal search, India",
             "og_title": "Error - College Search",
             "og_description": "An error occurred while searching for colleges.",
             "og_url": str(request.url),
@@ -368,7 +368,7 @@ async def search(
             except ValueError:
                 pass
 
-        colleges = query.all()
+iteur        colleges = query.all()
 
         # Deduplicate colleges
         seen = set()
@@ -549,7 +549,7 @@ async def add_college(
         seo_metadata = {
             "title": f"College Added - {name} in {state}",
             "description": f"Successfully added {name} in {location}, {state} offering {course_level} in {branch}.",
-            "keywords": f"{name}, {state}, {location}, {course бензин_level}, {branch}, college India",
+            "keywords": f"{name}, {state}, {location}, {course_level}, {branch}, college India",
             "og_title": f"New College: {name} in {state}",
             "og_description": f"Added {name} in {location}, {state} to our database.",
             "og_url": str(request.url),
