@@ -1,5 +1,5 @@
-from fastapi import FastAPI, Request, Form, HTTPException, Depends
-from fastapi.responses import HTMLResponse
+from fastapi import FastAPI, Request, Form, HTTPException, Depends, UploadFile, File
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from database import SessionLocal, engine, Base
@@ -7,7 +7,12 @@ from models import College, Review
 from typing import Optional
 from sqlalchemy.orm import Session
 import os
-from initial_data import initialize_database
+from initial_data import initialize_database, process_excel_file
+import logging
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Initialize FastAPI app
 app = FastAPI()
@@ -22,24 +27,24 @@ templates = Jinja2Templates(directory="templates")
 # Create database tables
 try:
     Base.metadata.create_all(bind=engine)
-    print("✅ Database tables created successfully")
+    logger.info("✅ Database tables created successfully")
     # Verify schema
     db = SessionLocal()
     try:
         db.execute("SELECT cutoff_min, cutoff_max FROM colleges LIMIT 1")
-        print("✅ Schema verified: 'cutoff_min' and 'cutoff_max' columns exist")
+        logger.info("✅ Schema verified: 'cutoff_min' and 'cutoff_max' columns exist")
     except Exception as e:
-        print(f"❌ Schema verification failed: {e}")
+        logger.error(f"❌ Schema verification failed: {e}")
     finally:
         db.close()
 except Exception as e:
-    print(f"❌ Error creating database tables: {e}")
+    logger.error(f"❌ Error creating database tables: {e}")
 
 # Initialize database with sample data
 try:
     initialize_database()
 except Exception as e:
-    print(f"❌ Error initializing database: {e}")
+    logger.error(f"❌ Error initializing database: {e}")
 
 # College name mappings to normalize user input
 COLLEGE_MAPPINGS = {
@@ -62,11 +67,11 @@ async def index(request: Request):
     db = SessionLocal()
     try:
         colleges = db.query(College).all()
-        print(f"GET /: Found {len(colleges)} colleges in database")
+        logger.info(f"GET /: Found {len(colleges)} colleges in database")
         if not colleges:
-            print("GET /: Warning: No colleges found in database!")
+            logger.warning("GET /: Warning: No colleges found in database!")
         else:
-            print(f"GET /: Colleges: {[c.name for c in colleges]}")
+            logger.info(f"GET /: Colleges: {[c.name for c in colleges]}")
 
         # Generate suggestions
         all_suggestions = {
@@ -75,9 +80,9 @@ async def index(request: Request):
             "state": sorted([c.state for c in colleges if c.state], key=str.lower),
             "branch": sorted([c.branch for c in colleges if c.branch], key=str.lower)
         }
-        print(f"GET /: Initial suggestions: {all_suggestions}")
+        logger.info(f"GET /: Initial suggestions: {all_suggestions}")
         if not any(all_suggestions.values()):
-            print("GET /: Error: Suggestions are empty! Check database data.")
+            logger.error("GET /: Error: Suggestions are empty! Check database data.")
 
         # SEO metadata
         states = sorted(set(c.state for c in colleges if c.state))
@@ -93,7 +98,7 @@ async def index(request: Request):
         }
 
     except Exception as e:
-        print(f"❌ GET /: Error loading suggestions: {e}")
+        logger.error(f"❌ GET /: Error loading suggestions: {e}")
         all_suggestions = {"college_name": [], "location": [], "state": [], "branch": []}
         seo_metadata = {
             "title": "Find Colleges in India",
@@ -116,7 +121,7 @@ async def index(request: Request):
         "seo": seo_metadata,
         "use_table": False
     }
-    print(f"GET /: Context passed to template: {context}")
+    logger.info(f"GET /: Context passed to template: {context}")
     return templates.TemplateResponse("index.html", context)
 
 @app.post("/", response_class=HTMLResponse)
@@ -149,7 +154,7 @@ async def index_post(
         college_name_lower = college_name.lower()
         if college_name_lower in COLLEGE_MAPPINGS:
             college_name = COLLEGE_MAPPINGS[college_name_lower]
-        print(f"POST /: Inputs - course_level: {course_level}, state: {state}, location: {location}, college_name: {college_name}, branch: {branch}, fees: {fees}, score: {score}")
+        logger.info(f"POST /: Inputs - course_level: {course_level}, state: {state}, location: {location}, college_name: {college_name}, branch: {branch}, fees: {fees}, score: {score}")
 
         # Base query
         query = db.query(College).filter(College.course_level == course_level)
@@ -170,21 +175,21 @@ async def index_post(
                 upper_fee = lower_fee + 100000
                 query = query.filter(College.fees.between(lower_fee, upper_fee))
             except ValueError:
-                print(f"POST /: Invalid fees input: {fees}")
+                logger.warning(f"POST /: Invalid fees input: {fees}")
         if score:
             try:
                 score_value = float(score)
                 query = query.filter(College.cutoff_min <= score_value, College.cutoff_max >= score_value)
             except ValueError:
-                print(f"POST /: Invalid score input: {score}")
+                logger.warning(f"POST /: Invalid score input: {score}")
 
         colleges = query.all()
-        print(f"POST /: Query results count: {len(colleges)}")
+        logger.info(f"POST /: Query results count: {len(colleges)}")
 
         # If no optional filters, show all for the mandatory course_level
         if not any([state, location, college_name, branch, fees, score]):
             colleges = db.query(College).filter(College.course_level == course_level).all()
-            print(f"POST /: All colleges for {course_level}: {len(colleges)}")
+            logger.info(f"POST /: All colleges for {course_level}: {len(colleges)}")
 
         # Format results
         results = []
@@ -229,9 +234,9 @@ async def index_post(
                 key=lambda x: x.lower()
             )
         }
-        print(f"POST /: Generated suggestions: {suggestions}")
+        logger.info(f"POST /: Generated suggestions: {suggestions}")
         if not any(suggestions.values()):
-            print("POST /: Error: Suggestions are empty! Check database data.")
+            logger.error("POST /: Error: Suggestions are empty! Check database data.")
 
         # Check for invalid inputs and provide specific error messages
         error_message = None
@@ -279,11 +284,11 @@ async def index_post(
             "seo": seo_metadata,
             "use_table": len(results) > 5
         }
-        print(f"POST /: Context passed to template: {context}")
+        logger.info(f"POST /: Context passed to template: {context}")
         return templates.TemplateResponse("index.html", context)
 
     except Exception as e:
-        print(f"❌ POST /: Search error: {e}")
+        logger.error(f"❌ POST /: Search error: {e}")
         seo_metadata = {
             "title": "Error - College Search",
             "description": "An error occurred while searching for colleges.",
@@ -329,10 +334,10 @@ async def search(
     db = SessionLocal()
     try:
         if not course_level:
-            return {"error": "Course level is required"}, 400
+            return JSONResponse(content={"error": "Course level is required"}, status_code=400)
         allowed_course_levels = ["BTech", "Diploma", "Degree"]
         if course_level not in allowed_course_levels:
-            return {"error": f"Course level must be one of {allowed_course_levels}"}, 400
+            return JSONResponse(content={"error": f"Course level must be one of {allowed_course_levels}"}, status_code=400)
 
         # Normalize inputs
         state = state.strip() if state else ""
@@ -360,13 +365,13 @@ async def search(
                 max_fees = float(fees)
                 query = query.filter(College.fees <= max_fees)
             except ValueError:
-                print(f"POST /api/search: Invalid fees input: {fees}")
+                logger.warning(f"POST /api/search: Invalid fees input: {fees}")
         if score:
             try:
                 score_value = float(score)
                 query = query.filter(College.cutoff_min <= score_value, College.cutoff_max >= score_value)
             except ValueError:
-                print(f"POST /api/search: Invalid score input: {score}")
+                logger.warning(f"POST /api/search: Invalid score input: {score}")
 
         colleges = query.all()
 
@@ -419,8 +424,8 @@ async def search(
         return {"results": results, "suggestions": suggestions}
 
     except Exception as e:
-        print(f"❌ POST /api/search: Error: {e}")
-        return {"error": "An error occurred while searching"}, 500
+        logger.error(f"❌ POST /api/search: Error: {e}")
+        return JSONResponse(content={"error": "An error occurred while searching"}, status_code=500)
     finally:
         db.close()
 
@@ -433,19 +438,19 @@ async def submit_review(
     db = SessionLocal()
     try:
         if not college_name or not review_text or not rating:
-            return {"error": "College name, review text, and rating are required"}, 400
+            return JSONResponse(content={"error": "College name, review text, and rating are required"}, status_code=400)
 
         try:
             rating_value = float(rating)
             if not (1 <= rating_value <= 5):
-                return {"error": "Rating must be between 1 and 5"}, 400
+                return JSONResponse(content={"error": "Rating must be between 1 and 5"}, status_code=400)
         except ValueError:
-            return {"error": "Invalid rating format"}, 400
+            return JSONResponse(content={"error": "Invalid rating format"}, status_code=400)
 
         # Check if college exists
         college = db.query(College).filter(College.name == college_name).first()
         if not college:
-            return {"error": "College not found"}, 404
+            return JSONResponse(content={"error": "College not found"}, status_code=404)
 
         # Add review
         new_review = Review(
@@ -459,10 +464,42 @@ async def submit_review(
         return {"message": "Review submitted successfully"}
 
     except Exception as e:
-        print(f"❌ Error submitting review: {e}")
-        return {"error": f"Database error: {str(e)}"}, 500
+        logger.error(f"❌ Error submitting review: {e}")
+        return JSONResponse(content={"error": f"Database error: {str(e)}"}, status_code=500)
     finally:
         db.close()
+
+@app.post("/api/upload_excel")
+async def upload_excel(file: UploadFile = File(...)):
+    """
+    Upload an Excel file to update the database with college and review data.
+    """
+    try:
+        # Validate file type
+        if not file.filename.endswith(('.xlsx', '.xls')):
+            return JSONResponse(
+                content={"error": "Invalid file format. Only .xlsx or .xls files are allowed."},
+                status_code=400
+            )
+
+        # Read file content
+        content = await file.read()
+        logger.info(f"Received Excel file: {file.filename}, size: {len(content)} bytes")
+
+        # Process Excel file and update database
+        json_data = process_excel_file(content)
+
+        return {
+            "message": "Excel file processed successfully",
+            "data": json_data
+        }
+
+    except ValueError as ve:
+        logger.error(f"❌ Validation error processing Excel file: {ve}")
+        return JSONResponse(content={"error": str(ve)}, status_code=400)
+    except Exception as e:
+        logger.error(f"❌ Error processing Excel file: {e}")
+        return JSONResponse(content={"error": f"Server error: {str(e)}"}, status_code=500)
 
 @app.post("/add_college", response_class=HTMLResponse)
 async def add_college(
@@ -571,7 +608,7 @@ async def add_college(
         )
 
     except Exception as e:
-        print(f"❌ Error adding college: {e}")
+        logger.error(f"❌ Error adding college: {e}")
         seo_metadata = {
             "title": "Error - Add College",
             "description": "An error occurred while adding a college.",
@@ -653,11 +690,11 @@ async def predict_colleges(score: int, db: Session = Depends(get_db)):
                 "reviews": [{"review_text": r.review_text, "rating": r.rating} for r in reviews[:2]]
             })
 
-        print(f"GET /predict_colleges/?score={score}: Found {len(results)} colleges")
+        logger.info(f"GET /predict_colleges/?score={score}: Found {len(results)} colleges")
         return {"results": sorted(results, key=lambda x: (-x["avg_rating"], x["fees"]))}
 
     except Exception as e:
-        print(f"❌ GET /predict_colleges/: Error: {e}")
+        logger.error(f"❌ GET /predict_colleges/: Error: {e}")
         raise HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")
 
 @app.get("/api/results")
@@ -706,9 +743,9 @@ async def get_results(score: int, db: Session = Depends(get_db)):
             } for c in all_colleges
         ]
 
-        print(f"GET /api/results?score={score}: Found {len(results)} colleges, {len(suggestions)} suggestions")
+        logger.info(f"GET /api/results?score={score}: Found {len(results)} colleges, {len(suggestions)} suggestions")
         return {"results": sorted(results, key=lambda x: (-x["avg_rating"], x["fees"])), "suggestions": suggestions}
 
     except Exception as e:
-        print(f"❌ GET /api/results: Error: {e}")
+        logger.error(f"❌ GET /api/results: Error: {e}")
         raise HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")
