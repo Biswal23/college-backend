@@ -549,7 +549,7 @@ async def add_college(
         seo_metadata = {
             "title": f"College Added - {name} in {state}",
             "description": f"Successfully added {name} in {location}, {state} offering {course_level} in {branch}.",
-            "keywords": f"{name}, {state}, {location}, {course_level}, {branch}, college India",
+            "keywords": f"{name}, {state}, {location}, {course бензин_level}, {branch}, college India",
             "og_title": f"New College: {name} in {state}",
             "og_description": f"Added {name} in {location}, {state} to our database.",
             "og_url": str(request.url),
@@ -658,4 +658,57 @@ async def predict_colleges(score: int, db: Session = Depends(get_db)):
 
     except Exception as e:
         print(f"❌ GET /predict_colleges/: Error: {e}")
+        raise HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")
+
+@app.get("/api/results")
+async def get_results(score: int, db: Session = Depends(get_db)):
+    try:
+        # Validate score
+        if score < 0:
+            raise HTTPException(status_code=400, detail="Score must be non-negative")
+
+        # Query colleges where score is within cutoff_min and cutoff_max
+        colleges = db.query(College).filter(
+            College.cutoff_min <= score,
+            College.cutoff_max >= score
+        ).all()
+
+        # Format results
+        results = []
+        for college in colleges:
+            reviews = db.query(Review).filter(Review.college_name == college.name).all()
+            avg_rating = sum(r.rating for r in reviews) / len(reviews) if reviews else 0
+            results.append({
+                "name": college.name,
+                "state": college.state,
+                "location": college.location,
+                "course_level": college.course_level,
+                "branch": college.branch,
+                "min_score": college.cutoff_min,
+                "max_score": college.cutoff_max,
+                "fees": college.fees,
+                "avg_rating": avg_rating,
+                "reviews": [{"review_text": r.review_text, "rating": r.rating} for r in reviews[:2]]
+            })
+
+        # Generate suggestions (all colleges for simplicity, could filter by proximity to score)
+        all_colleges = db.query(College).all()
+        suggestions = [
+            {
+                "name": c.name,
+                "state": c.state,
+                "location": c.location,
+                "course_level": c.course_level,
+                "branch": c.branch,
+                "min_score": c.cutoff_min,
+                "max_score": c.cutoff_max,
+                "fees": c.fees
+            } for c in all_colleges
+        ]
+
+        print(f"GET /api/results?score={score}: Found {len(results)} colleges, {len(suggestions)} suggestions")
+        return {"results": sorted(results, key=lambda x: (-x["avg_rating"], x["fees"])), "suggestions": suggestions}
+
+    except Exception as e:
+        print(f"❌ GET /api/results: Error: {e}")
         raise HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")
