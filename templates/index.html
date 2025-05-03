@@ -3,6 +3,255 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ seo.title }}</title>
+    <meta name="description" content="{{ seo.description }}">
+    <meta name="keywords" content="{{ seo.keywords }}">
+    <meta name="robots" content="index, follow">
+    <!-- Open Graph -->
+    <meta property="og:title" content="{{ seo.og_title }}">
+    <meta property="og:description" content="{{ seo.og_description }}">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="{{ seo.og_url }}">
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="{{ seo.twitter_card }}">
+    <meta name="twitter:title" content="{{ seo.og_title }}">
+    <meta name="twitter:description" content="{{ seo.og_description }}">
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+    <style>
+        html {
+            scroll-behavior: smooth;
+        }
+        .results-container {
+            max-height: 70vh;
+            overflow-y: auto;
+            scrollbar-width: thin;
+        }
+        .results-container::-webkit-scrollbar {
+            width: 8px;
+        }
+        .results-container::-webkit-scrollbar-thumb {
+            background-color: #888;
+            border-radius: 4px;
+        }
+        .table-responsive {
+            overflow-x: auto;
+        }
+        th {
+            cursor: pointer;
+        }
+        .filter-panel {
+            transition: max-height 0.3s ease-out;
+            max-height: 0;
+            overflow: hidden;
+        }
+        .filter-panel.open {
+            max-height: 500px;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 font-sans">
+    <div class="container mx-auto p-4 sm:p-6">
+        <h1 class="text-2xl sm:text-3xl font-bold text-center mb-6">Find Your College in India</h1>
+
+        <!-- Success Message -->
+        {% if success_message %}
+            <div class="bg-green-100 border-l-4 border-green-500 text-green-700 p-4 mb-6" role="alert">
+                {{ success_message }}
+            </div>
+        {% endif %}
+
+        <!-- Error Message -->
+        {% if error %}
+            <div class="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-6" role="alert">
+                {{ error }}
+            </div>
+        {% endif %}
+
+        <!-- Search Form -->
+        <form method="post" action="/" class="bg-white p-6 rounded-lg shadow-md mb-6">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                    <label for="course_level" class="block text-sm font-medium text-gray-700">Course Level</label>
+                    <select name="course_level" id="course_level" required class="mt-1 block w-full p-2 border border-gray-300 rounded-md text-base sm:text-sm">
+                        <option value="" {% if not form_data.course_level %}selected{% endif %}>Select Course Level</option>
+                        <option value="BTech" {% if form_data.course_level == 'BTech' %}selected{% endif %}>BTech</option>
+                        <option value="Diploma" {% if form_data.course_level == 'Diploma' %}selected{% endif %}>Diploma</option>
+                        <option value="Degree" {% if form_data.course_level == 'Degree' %}selected{% endif %}>Degree</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="state" class="block text-sm font-medium text-gray-700">State</label>
+                    <input type="text" name="state" id="state" value="{{ form_data.state }}" list="state_suggestions" class="mt-1 block w-full p-2 border border-gray-300 rounded-md text-base sm:text-sm">
+                    <datalist id="state_suggestions">
+                        {% for state in suggestions.state %}
+                            <option value="{{ state }}">
+                        {% endfor %}
+                    </datalist>
+                </div>
+                <div>
+                    <label for="location" class="block text-sm font-medium text-gray-700">Location/District</label>
+                    <input type="text" name="location" id="location" value="{{ form_data.location }}" list="location_suggestions" class="mt-1 block w-full p-2 border border-gray-300 rounded-md text-base sm:text-sm">
+                    <datalist id="location_suggestions">
+                        {% for location in suggestions.location %}
+                            <option value="{{ location }}">
+                        {% endfor %}
+                    </datalist>
+                </div>
+                <div>
+                    <label for="college_name" class="block text-sm font-medium text-gray-700">College Name</label>
+                    <input type="text" name="college_name" id="college_name" value="{{ form_data.college_name }}" list="college_name_suggestions" class="mt-1 block w-full p-2 border border-gray-300 rounded-md text-base sm:text-sm">
+                    <datalist id="college_name_suggestions">
+                        {% for name in suggestions.college_name %}
+                            <option value="{{ name }}">
+                        {% endfor %}
+                    </datalist>
+                </div>
+                <div>
+                    <label for="branch" class="block text-sm font-medium text-gray-700">Branch</label>
+                    <input type="text" name="branch" id="branch" value="{{ form_data.branch }}" list="branch_suggestions" class="mt-1 block w-full p-2 border border-gray-300 rounded-md text-base sm:text-sm">
+                    <datalist id="branch_suggestions">
+                        {% for branch in suggestions.branch %}
+                            <option value="{{ branch }}">
+                        {% endfor %}
+                    </datalist>
+                </div>
+                <div>
+                    <label for="fees" class="block text-sm font-medium text-gray-700">Max Fees (INR)</label>
+                    <input type="number" name="fees" id="fees" value="{{ form_data.fees }}" class="mt-1 block w-full p-2 border border-gray-300 rounded-md text-base sm:text-sm">
+                </div>
+                <div>
+                    <label for="score" class="block text-sm font-medium text-gray-700">Cutoff Score</label>
+                    <input type="number" name="score" id="score" value="{{ form_data.score }}" class="mt-1 block w-full p-2 border border-gray-300 rounded-md text-base sm:text-sm" placeholder="e.g., 600">
+                </div>
+            </div>
+            <button type="submit" class="mt-4 w-full sm:w-auto bg-blue-600 text-white p-2 rounded-md hover:bg-blue-700">Search</button>
+        </form>
+
+        <!-- Results -->
+        <div class="results-container">
+            {% if results %}
+                <h2 class="text-xl sm:text-2xl font-semibold mb-4">Search Results ({{ results|length }} colleges)</h2>
+                {% if use_table %}
+                    <!-- Collapsible Filter Panel -->
+                    <div class="mb-4">
+                        <button id="toggle-filters" class="bg-gray-200 text-gray-700 p-2 rounded-md w-full sm:w-auto">Show Filters</button>
+                        <div id="filter-panel" class="filter-panel bg-white p-4 rounded-lg shadow-md mt-2">
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div>
+                                    <label for="filter-state" class="block text-sm font-medium text-gray-700">Filter by State</label>
+                                    <input type="text" id="filter-state" class="mt-1 block w-full p-2 border border-gray-300 rounded-md text-base sm:text-sm" placeholder="Enter state">
+                                </div>
+                                <div>
+                                    <label for="filter-branch" class="block text-sm font-medium text-gray-700">Filter by Branch</label>
+                                    <input type="text" id="filter-branch" class="mt-1 block w-full p-2 border border-gray-300 rounded-md text-base sm:text-sm" placeholder="Enter branch">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Sortable Table -->
+                    <div class="table-responsive">
+                        <table id="results-table" class="min-w-full bg-white border border-gray-300">
+                            <thead>
+                                <tr class="bg-gray-100">
+                                    <th class="py-2 px-4 border-b text-left">Name</th>
+                                    <th class="py-2 px-4 border-b text-left">State</th>
+                                    <th class="py-2 px-4 border-b text-left">Location</th>
+                                    <th class="py-2 px-4 border-b text-left">Course Level</th>
+                                    <th class="py-2 px-4 border-b text-left">Branch</th>
+                                    <th class="py-2 px-4 border-b text-left">Cutoff</th>
+                                    <th class="py-2 px-4 border-b text-left">Fees (₹)</th>
+                                    <th class="py-2 px-4 border-b text-left">Rating</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for result in results %}
+                                    <tr class="hover:bg-gray-50">
+                                        <td class="py-2 px-4 border-b">{{ result.name }}</td>
+                                        <td class="py-2 px-4 border-b">{{ result.state }}</td>
+                                        <td class="py-2 px-4 border-b">{{ result.location }}</td>
+                                        <td class="py-2 px-4 border-b">{{ result.course_level }}</td>
+                                        <td class="py-2 px-4 border-b">{{ result.branch }}</td>
+                                        <td class="py-2 px-4 border-b">{{ result.min_score }}</td>
+                                        <td class="py-2 px-4 border-b">{{ result.fees }}</td>
+                                        <td class="py-2 px-4 border-b">{{ result.avg_rating|round(1) }}/5</td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <!-- Card Layout for <= 5 Results -->
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {% for result in results %}
+                            <div class="bg-white p-4 rounded-lg shadow-md">
+                                <h3 class="text-lg font-bold">{{ result.name }}</h3>
+                                <p class="text-gray-600">{{ result.location }}, {{ result.state }}</p>
+                                <p class="text-gray-600">Course: {{ result.course_level }} - {{ result.branch }}</p>
+                                <p class="text-gray-600">Cutoff: {{ result.min_score }}</p>
+                                <p class="text-gray-600">Fees: ₹{{ result.fees }}</p>
+                                <p class="text-gray-600">Rating: {{ result.avg_rating|round(1) }} / 5</p>
+                                {% if result.reviews %}
+                                    <div class="mt-2">
+                                        <h4 class="text-sm font-medium">Reviews:</h4>
+                                        {% for review in result.reviews %}
+                                            <p class="text-sm text-gray-500">"{{ review.review_text }}" ({{ review.rating }}/5)</p>
+                                        {% endfor %}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            {% else %}
+                <p class="text-gray-600">No results to display. Use the form above to search for colleges.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <script>
+        // Toggle Filter Panel
+        document.getElementById('toggle-filters')?.addEventListener('click', () => {
+            const panel = document.getElementById('filter-panel');
+            const button = document.getElementById('toggle-filters');
+            panel.classList.toggle('open');
+            button.textContent = panel.classList.contains('open') ? 'Hide Filters' : 'Show Filters';
+        });
+
+        // Initialize Sortable.js
+        const table = document.getElementById('results-table');
+        if (table) {
+            new Sortable(table.querySelector('tbody'), {
+                animation: 150,
+                ghostClass: 'bg-gray-200'
+            });
+        }
+
+        // Client-Side Filtering
+        const filterState = document.getElementById('filter-state');
+        const filterBranch = document.getElementById('filter-branch');
+        if (filterState && filterBranch) {
+            const rows = table?.querySelectorAll('tbody tr');
+            const filterTable = () => {
+                const stateValue = filterState.value.toLowerCase().trim();
+                const branchValue = filterBranch.value.toLowerCase().trim();
+                rows.forEach(row => {
+                    const state = row.cells[1].textContent.toLowerCase();
+                    const branch = row.cells[4].textContent.toLowerCase();
+                    const show = (!stateValue || state.includes(stateValue)) && (!branchValue || branch.includes(branchValue));
+                    row.style.display = show ? '' : 'none';
+                });
+            };
+            filterState.addEventListener('input', filterTable);
+            filterBranch.addEventListener('input', filterTable);
+        }
+    </script>
+</body>
+</html><!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Find Colleges in India - Course, Location, Fees, Cutoff</title>
     <meta name="description" content="Find and compare colleges based on course level, branch, location, fees, and cutoff scores in India.">
     <meta name="keywords" content="college search, engineering, diploma, degree, cutoff, India, admission">
