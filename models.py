@@ -10,7 +10,8 @@ class College(Base):
     course_level = Column(String)
     branch = Column(String)
     fees = Column(Float)
-    cutoff = Column(Float)
+    cutoff_min = Column(Float)
+    cutoff_max = Column(Float)
 
 class Review(Base):
     __tablename__ = "reviews"
