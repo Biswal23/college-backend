@@ -454,7 +454,7 @@ async def submit_review(
             rating=rating_value
         )
         db.add(new_review)
-       asco db.commit()
+        db.commit()
 
         return {"message": "Review submitted successfully"}
 
