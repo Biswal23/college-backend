@@ -1,11 +1,20 @@
 from database import SessionLocal, engine
-from models import College, Review
-from sqlalchemy.exc import IntegrityError
+from models import College, Review, Base
+from sqlalchemy.exc import IntegrityError, OperationalError
 
 def initialize_database():
     """
     Initialize the database with sample college and review data.
     """
+    # Recreate tables to ensure schema is up-to-date
+    try:
+        Base.metadata.drop_all(bind=engine)
+        Base.metadata.create_all(bind=engine)
+        print("✅ Database tables recreated successfully")
+    except Exception as e:
+        print(f"❌ Error recreating database tables: {e}")
+        return
+
     db = SessionLocal()
     try:
         # Check if data already exists to avoid duplicates
@@ -175,7 +184,10 @@ def initialize_database():
 
     except IntegrityError as e:
         db.rollback()
-        print(f"❌ Error initializing database: {e}")
+        print(f"❌ Error initializing database: IntegrityError: {e}")
+    except OperationalError as e:
+        db.rollback()
+        print(f"❌ Error initializing database: OperationalError: {e}")
     except Exception as e:
         db.rollback()
         print(f"❌ Unexpected error initializing database: {e}")
