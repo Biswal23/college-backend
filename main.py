@@ -66,9 +66,31 @@ async def index(request: Request):
         if not any(all_suggestions.values()):
             print("GET /: Error: Suggestions are empty! Check database data.")
 
+        # SEO metadata
+        states = sorted(set(c.state for c in colleges if c.state))
+        locations = sorted(set(c.location for c in colleges if c.location))
+        seo_metadata = {
+            "title": "Find Top Colleges in India | BTech, Diploma, Degree",
+            "description": f"Discover top colleges in {', '.join(states[:3]) + ' and more' if states else 'India'} for BTech, Diploma, and Degree courses. Filter by state, district, fees, and cutoff scores.",
+            "keywords": f"colleges in India, {', '.join(states)}, {', '.join(locations[:5])}, BTech colleges, Diploma colleges, Degree colleges",
+            "og_title": "Best Colleges in India - Find Your Perfect Institute",
+            "og_description": f"Explore colleges in {', '.join(states[:2]) + ' and other states' if states else 'India'} with detailed reviews and filters.",
+            "og_url": str(request.url),
+            "twitter_card": "summary_large_image"
+        }
+
     except Exception as e:
         print(f"❌ GET /: Error loading suggestions: {e}")
         all_suggestions = {"college_name": [], "location": [], "state": [], "branch": []}
+        seo_metadata = {
+            "title": "Find Colleges in India",
+            "description": "Search for colleges in India by course, state, and more.",
+            "keywords": "colleges, India, education",
+            "og_title": "Find Colleges in India",
+            "og_description": "Search for colleges in India.",
+            "og_url": str(request.url),
+            "twitter_card": "summary"
+        }
     finally:
         db.close()
 
@@ -77,7 +99,9 @@ async def index(request: Request):
         "results": [],
         "suggestions": all_suggestions,
         "error": None,
-        "form_data": {}
+        "form_data": {},
+        "seo": seo_metadata,
+        "use_table": False
     }
     print(f"GET /: Context passed to template: {context}")
     return templates.TemplateResponse("index.html", context)
@@ -137,13 +161,13 @@ async def index_post(
         if score:
             try:
                 score_value = float(score)
-                if score_value < 1000:
-                    lower_score = 0
-                    upper_score = 1000
+                cutoff_min = 500
+                cutoff_max = 1500
+                # Check if score is within the acceptable range
+                if cutoff_min <= score_value <= cutoff_max:
+                    query = query.filter(College.cutoff.between(cutoff_min, cutoff_max))
                 else:
-                    lower_score = (score_value // 1000) * 1000
-                    upper_score = lower_score + 9000
-                query = query.filter(College.cutoff.between(lower_score, upper_score))
+                    query = query.filter(False)  # No results if score is out of range
             except ValueError:
                 print(f"POST /: Invalid score input: {score}")
 
@@ -212,8 +236,23 @@ async def index_post(
                 error_message = f"Result fetching error: No matching colleges found for college name '{college_name}'."
             elif branch and not any(br.lower().startswith(branch.lower()) for br in existing_branches):
                 error_message = f"Result fetching error: No matching colleges found for branch '{branch}'."
+            elif score and (not score.isdigit() or not (500 <= float(score) <= 1500)):
+                error_message = f"Result fetching error: Score '{score}' is out of range (500–1500)."
             else:
                 error_message = "No colleges found matching your criteria."
+
+        # SEO metadata for search results
+        states = sorted(set(c.state for c in colleges if c.state))
+        locations = sorted(set(c.location for c in colleges if c.location))
+        seo_metadata = {
+            "title": f"Top {course_level} Colleges in {state or 'India'} | Search Results",
+            "description": f"Find {course_level} colleges in {state or 'India'}, {location or 'various districts'}. Filter by fees, cutoff score, and branch.",
+            "keywords": f"{course_level} colleges, {state or 'India'}, {location or 'districts'}, {', '.join(suggestions['branch'][:3])}, college search",
+            "og_title": f"Search {course_level} Colleges in {state or 'India'}",
+            "og_description": f"Explore {course_level} colleges in {state or 'India'} with filters for cutoff, fees, and more.",
+            "og_url": str(request.url),
+            "twitter_card": "summary_large_image"
+        }
 
         context = {
             "request": request,
@@ -228,13 +267,24 @@ async def index_post(
                 "branch": branch,
                 "fees": fees,
                 "score": score
-            }
+            },
+            "seo": seo_metadata,
+            "use_table": len(results) > 5
         }
         print(f"POST /: Context passed to template: {context}")
         return templates.TemplateResponse("index.html", context)
 
     except Exception as e:
         print(f"❌ POST /: Search error: {e}")
+        seo_metadata = {
+            "title": "Error - College Search",
+            "description": "An error occurred while searching for colleges.",
+            "keywords": "college search, India",
+            "og_title": "Error - College Search",
+            "og_description": "An error occurred while searching for colleges.",
+            "og_url": str(request.url),
+            "twitter_card": "summary"
+        }
         return templates.TemplateResponse(
             "index.html",
             {
@@ -250,7 +300,9 @@ async def index_post(
                     "branch": branch,
                     "fees": fees,
                     "score": score
-                }
+                },
+                "seo": seo_metadata,
+                "use_table": False
             }
         )
     finally:
@@ -290,7 +342,7 @@ async def search(
         if state:
             query = query.filter(College.state.ilike(f"{state}%"))
         if location:
-            query = query.filter(College.location.ilike(f"{location}%"))  # Fixed: was using state
+            query = query.filter(College.location.ilike(f"{location}%"))
         if college_name:
             query = query.filter(College.name.ilike(f"{college_name}%"))
         if branch:
@@ -303,14 +355,19 @@ async def search(
                 pass
         if score:
             try:
-                min_score = float(score)
-                query = query.filter(College.cutoff <= min_score)
+                score_value = float(score)
+                cutoff_min = 500
+                cutoff_max = 1500
+                if cutoff_min <= score_value <= cutoff_max:
+                    query = query.filter(College.cutoff.between(cutoff_min, cutoff_max))
+                else:
+                    query = query.filter(False)  # No results if score is out of range
             except ValueError:
                 pass
 
         colleges = query.all()
 
-        # Deduplicate colleges by name, state, location, course_level, branch
+        # Deduplicate colleges
         seen = set()
         deduplicated_colleges = []
         for college in colleges:
@@ -334,7 +391,7 @@ async def search(
                 "reviews": [{"review_text": r.review_text, "rating": r.rating} for r in reviews]
             })
 
-        # Generate autosuggestions based on user input prefixes
+        # Generate autosuggestions
         all_colleges = db.query(College).all()
         suggestions = {
             "college_name": sorted(
@@ -479,6 +536,17 @@ async def add_college(
             "branch": sorted([c.branch for c in all_colleges if c.branch], key=str.lower)
         }
 
+        # SEO metadata
+        seo_metadata = {
+            "title": f"College Added - {name} in {state}",
+            "description": f"Successfully added {name} in {location}, {state} offering {course_level} in {branch}.",
+            "keywords": f"{name}, {state}, {location}, {course_level}, {branch}, college India",
+            "og_title": f"New College: {name} in {state}",
+            "og_description": f"Added {name} in {location}, {state} to our database.",
+            "og_url": str(request.url),
+            "twitter_card": "summary"
+        }
+
         return templates.TemplateResponse(
             "index.html",
             {
@@ -487,12 +555,23 @@ async def add_college(
                 "suggestions": suggestions,
                 "error": None,
                 "form_data": {},
-                "success_message": f"✅ College '{name}' added successfully!"
+                "success_message": f"✅ College '{name}' added successfully!",
+                "seo": seo_metadata,
+                "use_table": False
             }
         )
 
     except Exception as e:
         print(f"❌ Error adding college: {e}")
+        seo_metadata = {
+            "title": "Error - Add College",
+            "description": "An error occurred while adding a college.",
+            "keywords": "college, India",
+            "og_title": "Error - Add College",
+            "og_description": "An error occurred while adding a college.",
+            "og_url": str(request.url),
+            "twitter_card": "summary"
+        }
         return templates.TemplateResponse(
             "index.html",
             {
@@ -500,7 +579,9 @@ async def add_college(
                 "results": [],
                 "suggestions": {"college_name": [], "location": [], "state": [], "branch": []},
                 "error": f"Error adding college: {str(e)}",
-                "form_data": {}
+                "form_data": {},
+                "seo": seo_metadata,
+                "use_table": False
             }
         )
     finally:
