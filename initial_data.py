@@ -1,5 +1,5 @@
 from database import SessionLocal
-from models import College, Review
+from models import College, CollegeBranch, Review
 import pandas as pd
 from io import BytesIO
 from typing import Optional
@@ -25,7 +25,6 @@ def initialize_database():
                 "state": "Maharashtra",
                 "location": "Pune",
                 "course_level": "BTech",
-                "branch": "Computer Science,Mechanical Engineering",
                 "fees": 120000.0,
                 "cutoff_min": 600.0,
                 "cutoff_max": 800.0
@@ -35,7 +34,6 @@ def initialize_database():
                 "state": "Karnataka",
                 "location": "Bangalore",
                 "course_level": "Degree",
-                "branch": "Science",
                 "fees": 80000.0,
                 "cutoff_min": 500.0,
                 "cutoff_max": 700.0
@@ -45,17 +43,29 @@ def initialize_database():
                 "state": "Delhi",
                 "location": "New Delhi",
                 "course_level": "Diploma",
-                "branch": "Mechanical Engineering",
                 "fees": 60000.0,
                 "cutoff_min": 400.0,
                 "cutoff_max": 600.0
             }
         ]
 
+        # Sample branch data
+        branches = [
+            {"college_name": "Tech College", "branch": "Computer Science"},
+            {"college_name": "Tech College", "branch": "Mechanical Engineering"},
+            {"college_name": "Science College", "branch": "Science"},
+            {"college_name": "Polytechnic Institute", "branch": "Mechanical Engineering"}
+        ]
+
         # Insert colleges
         for college_data in colleges:
             college = College(**college_data)
             db.add(college)
+
+        # Insert branches
+        for branch_data in branches:
+            branch = CollegeBranch(**branch_data)
+            db.add(branch)
         
         # Sample review data
         reviews = [
@@ -89,6 +99,7 @@ def process_excel_file(file_content: bytes) -> dict:
     """
     Process an Excel file, convert to JSON, and update the database.
     Supports multiple branches in separate columns or delimited string.
+    Stores branches in the CollegeBranch table.
     Returns a JSON representation of the processed data.
     Note: cutoff_min and cutoff_max are rank-based (e.g., admission ranks).
     """
@@ -127,6 +138,7 @@ def process_excel_file(file_content: bytes) -> dict:
         # Normalize and validate data
         df = df.dropna(how='all')  # Remove completely empty rows
         colleges_data = []
+        branches_data = []
         reviews_data = []
 
         allowed_course_levels = ["BTech", "Diploma", "Degree"]
@@ -161,8 +173,11 @@ def process_excel_file(file_content: bytes) -> dict:
                        "B. Tech in Electrical Engineering & M.Tech in Power System Engineering"]
         }
 
-        for _, row in df.iterrows():
-            # Process college data
+        # Group by college name to handle duplicates
+        grouped = df.groupby('name')
+        for college_name, group in grouped:
+            # Use the last row for college data (consistent with previous behavior)
+            row = group.iloc[-1]
             college_data = {
                 'name': str(row['name']).strip(),
                 'state': str(row['state']).strip(),
@@ -182,20 +197,30 @@ def process_excel_file(file_content: bytes) -> dict:
                 logger.warning(f"Invalid course_level '{college_data['course_level']}' for college '{college_data['name']}'")
                 continue
 
-            # Process branches
-            branches = []
-            for col in branch_columns:
-                if pd.notna(row.get(col)):
-                    # Handle delimited string (e.g., "Computer Science;Mechanical Engineering")
-                    branch_value = str(row[col]).strip()
-                    if ',' in branch_value or ';' in branch_value:
-                        delimiter = ',' if ',' in branch_value else ';'
-                        branch_list = [b.strip() for b in branch_value.split(delimiter)]
-                        branches.extend(branch_list)
-                    else:
-                        branches.append(branch_value)
+            # Validate college data
+            if college_data['fees'] < 0 or college_data['cutoff_min'] < 0 or college_data['cutoff_max'] < 0:
+                logger.warning(f"Negative values detected for college '{college_data['name']}'")
+                continue
+            if college_data['cutoff_min'] > college_data['cutoff_max']:
+                logger.warning(f"Invalid cutoff range for college '{college_data['name']}'")
+                continue
 
-            # Normalize branch names (example mappings)
+            colleges_data.append(college_data)
+
+            # Process branches for this college (across all rows in the group)
+            branches = []
+            for _, group_row in group.iterrows():
+                for col in branch_columns:
+                    if pd.notna(group_row.get(col)):
+                        branch_value = str(group_row[col]).strip()
+                        if ',' in branch_value or ';' in branch_value:
+                            delimiter = ',' if ',' in branch_value else ';'
+                            branch_list = [b.strip() for b in branch_value.split(delimiter)]
+                            branches.extend(branch_list)
+                        else:
+                            branches.append(branch_value)
+
+            # Normalize branch names
             branch_mappings = {
                 "Computer Science and Engineering": "Computer Science",
                 "Electronics & Telecommunication Engineering": "Electronics and Telecommunication",
@@ -218,50 +243,56 @@ def process_excel_file(file_content: bytes) -> dict:
             if not valid_branches:
                 logger.warning(f"No valid branches for college '{college_data['name']}'")
                 continue
-            college_data['branch'] = ','.join(sorted(set(valid_branches)))
 
-            # Validate college data
-            if college_data['fees'] < 0 or college_data['cutoff_min'] < 0 or college_data['cutoff_max'] < 0:
-                logger.warning(f"Negative values detected for college '{college_data['name']}'")
-                continue
-            if college_data['cutoff_min'] > college_data['cutoff_max']:
-                logger.warning(f"Invalid cutoff range for college '{college_data['name']}'")
-                continue
-            # Removed high cutoff_max warning as cutoffs are confirmed to be rank-based
-
-            colleges_data.append(college_data)
+            # Add branches to branches_data
+            for branch in sorted(set(valid_branches)):
+                branches_data.append({
+                    'college_name': college_data['name'],
+                    'branch': branch
+                })
 
             # Process review data if present
-            if has_reviews and pd.notna(row['college_name']) and pd.notna(row['review_text']) and pd.notna(row['rating']):
-                review_data = {
-                    'college_name': str(row['college_name']).strip(),
-                    'review_text': str(row['review_text']).strip(),
-                    'rating': float(row['rating'])
-                }
-                if 1 <= review_data['rating'] <= 5:
-                    reviews_data.append(review_data)
-                else:
-                    logger.warning(f"Invalid rating '{review_data['rating']}' for review of '{review_data['college_name']}'")
+            if has_reviews:
+                for _, group_row in group.iterrows():
+                    if pd.notna(group_row['college_name']) and pd.notna(group_row['review_text']) and pd.notna(group_row['rating']):
+                        review_data = {
+                            'college_name': str(group_row['college_name']).strip(),
+                            'review_text': str(group_row['review_text']).strip(),
+                            'rating': float(group_row['rating'])
+                        }
+                        if 1 <= review_data['rating'] <= 5:
+                            reviews_data.append(review_data)
+                        else:
+                            logger.warning(f"Invalid rating '{review_data['rating']}' for review of '{review_data['college_name']}'")
 
         # Update database
         inserted_colleges = 0
         updated_colleges = 0
+        inserted_branches = 0
         inserted_reviews = 0
 
+        # Insert or update colleges
         for college_data in colleges_data:
             existing_college = db.query(College).filter(College.name == college_data['name']).first()
             if existing_college:
                 # Update existing college
                 for key, value in college_data.items():
                     setattr(existing_college, key, value)
+                # Delete existing branches to avoid duplicates
+                db.query(CollegeBranch).filter(CollegeBranch.college_name == college_data['name']).delete()
                 updated_colleges += 1
             else:
                 # Insert new college
                 db.add(College(**college_data))
                 inserted_colleges += 1
 
+        # Insert branches
+        for branch_data in branches_data:
+            db.add(CollegeBranch(**branch_data))
+            inserted_branches += 1
+
+        # Insert reviews
         for review_data in reviews_data:
-            # Only insert review if college exists
             if db.query(College).filter(College.name == review_data['college_name']).first():
                 db.add(Review(**review_data))
                 inserted_reviews += 1
@@ -269,15 +300,24 @@ def process_excel_file(file_content: bytes) -> dict:
                 logger.warning(f"Cannot add review for non-existent college '{review_data['college_name']}'")
 
         db.commit()
-        logger.info(f"✅ Database updated: {inserted_colleges} colleges inserted, {updated_colleges} colleges updated, {inserted_reviews} reviews inserted.")
+        logger.info(f"✅ Database updated: {inserted_colleges} colleges inserted, {updated_colleges} colleges updated, {inserted_branches} branches inserted, {inserted_reviews} reviews inserted.")
 
         # Convert to JSON for response
+        # Include branches in the colleges data for the response
+        colleges_with_branches = []
+        for college in colleges_data:
+            college_branches = [b['branch'] for b in branches_data if b['college_name'] == college['name']]
+            college_copy = college.copy()
+            college_copy['branches'] = college_branches
+            colleges_with_branches.append(college_copy)
+
         json_data = {
-            "colleges": colleges_data,
+            "colleges": colleges_with_branches,
             "reviews": reviews_data,
             "summary": {
                 "inserted_colleges": inserted_colleges,
                 "updated_colleges": updated_colleges,
+                "inserted_branches": inserted_branches,
                 "inserted_reviews": inserted_reviews
             }
         }
