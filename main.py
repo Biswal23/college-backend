@@ -1,19 +1,16 @@
-from fastapi import FastAPI, HTTPException, Request, Form, Depends, File, UploadFile
+from fastapi import FastAPI, HTTPException, Request, Form
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
-from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from pydantic import BaseModel
 from typing import List, Optional
 from database import SessionLocal, engine
-from models import Base, College, CollegeBranch, Review, User
+from models import Base, College, CollegeBranch, Review
 import initial_data
 import pandas as pd
 import logging
+import requests
 import io
-from datetime import datetime, timedelta
-from jose import JWTError, jwt
-from passlib.context import CryptContext
-from fastapi import status
+import os
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -25,18 +22,7 @@ Base.metadata.create_all(bind=engine)
 app = FastAPI()
 templates = Jinja2Templates(directory="templates")
 
-# JWT Configuration
-SECRET_KEY = "your-secret-key"  # Replace with a secure key in production
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
-
-# Password hashing
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
-# OAuth2 scheme
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/login")
-
-# Pydantic models
+# Pydantic models for request/response
 class CollegeResponse(BaseModel):
     name: str
     state: str
@@ -59,69 +45,16 @@ class SearchRequest(BaseModel):
     fees: Optional[float]
     score: Optional[float]
 
-class UserCreate(BaseModel):
-    username: str
-    password: str
-    is_admin: bool = False
-
-class UserInDB(BaseModel):
-    username: str
-    hashed_password: str
-    is_admin: bool
-
-class Token(BaseModel):
-    access_token: str
-    token_type: str
-
-# Authentication functions
-def verify_password(plain_password, hashed_password):
-    return pwd_context.verify(plain_password, hashed_password)
-
-def get_password_hash(password):
-    return pwd_context.hash(password)
-
-def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
-    to_encode = data.copy()
-    if expires_delta:
-        expire = datetime.utcnow() + expires_delta
-    else:
-        expire = datetime.utcnow() + timedelta(minutes=15)
-    to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-    return encoded_jwt
-
-async def get_current_user(token: str = Depends(oauth2_scheme)):
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Could not validate credentials",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        username: str = payload.get("sub")
-        if username is None:
-            raise credentials_exception
-    except JWTError:
-        raise credentials_exception
-    db = SessionLocal()
-    try:
-        user = db.query(User).filter(User.username == username).first()
-        if user is None:
-            raise credentials_exception
-        return user
-    finally:
-        db.close()
-
-async def get_current_admin(user: User = Depends(get_current_user)):
-    if not user.is_admin:
-        raise HTTPException(status_code=403, detail="Admin access required")
-    return user
-
-# Existing Excel processing function
-def process_excel_file(content: bytes):
+# Function to fetch and process CSV file from GitHub
+def process_csv_file(github_url: str = os.getenv("GITHUB_CSV_URL", "https://raw.githubusercontent.com/username/repo/main/college_data.csv")):
     try:
         db = SessionLocal()
-        df = pd.read_excel(io.BytesIO(content))
+        # Fetch CSV from GitHub
+        response = requests.get(github_url, timeout=10)
+        response.raise_for_status()  # Raise an error for bad status codes
+        # Read CSV content into a pandas DataFrame
+        df = pd.read_csv(io.StringIO(response.text))
+        
         summary = {'inserted_colleges': 0, 'inserted_branches': 0, 'inserted_reviews': 0}
 
         for _, row in df.iterrows():
@@ -145,6 +78,7 @@ def process_excel_file(content: bytes):
                 college.max_score = row['max_score']
                 college.rank = row['rank'] if pd.notna(row['rank']) else None
 
+            # Handle branches
             branches = row['branches'].split(',') if isinstance(row['branches'], str) else []
             for branch_name in branches:
                 branch_name = branch_name.strip()
@@ -154,6 +88,7 @@ def process_excel_file(content: bytes):
                     db.add(branch)
                     summary['inserted_branches'] += 1
 
+            # Handle reviews
             if 'review_text' in row and 'rating' in row and pd.notna(row['review_text']) and pd.notna(row['rating']):
                 review = Review(
                     college_name=college.name,
@@ -164,15 +99,24 @@ def process_excel_file(content: bytes):
                 summary['inserted_reviews'] += 1
 
         db.commit()
+        logger.info(f"Successfully processed CSV file: {summary}")
         return {'status': 'success', 'summary': summary}
     except Exception as e:
         db.rollback()
-        logger.error(f"Error processing Excel file: {e}")
+        logger.error(f"Error processing CSV file: {e}")
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         db.close()
 
-# Endpoints
+# Endpoint to trigger CSV processing (for developers or on startup)
+@app.on_event("startup")
+async def startup_event():
+    try:
+        result = process_csv_file()
+        logger.info(f"Startup CSV processing result: {result}")
+    except Exception as e:
+        logger.error(f"Error during startup CSV processing: {e}")
+
 @app.get("/", response_class=HTMLResponse)
 async def get_index(request: Request):
     seo = {
@@ -301,53 +245,6 @@ async def search_form(
     finally:
         db.close()
 
-@app.post("/api/register")
-async def register_user(user: UserCreate):
-    db = SessionLocal()
-    try:
-        existing_user = db.query(User).filter(User.username == user.username).first()
-        if existing_user:
-            raise HTTPException(status_code=400, detail="Username already registered")
-        hashed_password = get_password_hash(user.password)
-        db_user = User(username=user.username, hashed_password=hashed_password, is_admin=user.is_admin)
-        db.add(db_user)
-        db.commit()
-        db.refresh(db_user)
-        return {"message": "User registered successfully"}
-    except Exception as e:
-        db.rollback()
-        logger.error(f"Error registering user: {e}")
-        raise HTTPException(status_code=500, detail="Error registering user")
-    finally:
-        db.close()
-
-@app.post("/api/login", response_model=Token)
-async def login(form_data: OAuth2PasswordRequestForm = Depends()):
-    db = SessionLocal()
-    try:
-        user = db.query(User).filter(User.username == form_data.username).first()
-        if not user or not verify_password(form_data.password, user.hashed_password):
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Incorrect username or password",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
-        access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-        access_token = create_access_token(
-            data={"sub": user.username}, expires_delta=access_token_expires
-        )
-        return {"access_token": access_token, "token_type": "bearer"}
-    finally:
-        db.close()
-
-@app.post("/api/upload-evercel")
-async def upload_excel(file: UploadFile = File(...), current_user: User = Depends(get_current_admin)):
-    if not file.filename.endswith('.xlsx'):
-        raise HTTPException(status_code=400, detail="Only .xlsx files are supported")
-    content = await file.read()
-    result = process_excel_file(content)
-    return result
-
 @app.post("/api/search", response_model=List[CollegeResponse])
 async def search_colleges(search: SearchRequest):
     db = SessionLocal()
@@ -378,7 +275,7 @@ async def search_colleges(search: SearchRequest):
                 "name": college.name,
                 "state": college.state,
                 "location": college.location,
-                "course_level": coopération_level,
+                "course_level": college.course_level,
                 "fees": college.fees,
                 "min_score": college.min_score,
                 "max_score": college.max_score,
