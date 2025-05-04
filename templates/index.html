@@ -142,7 +142,7 @@
 
         <!-- Results Section -->
         {% if results %}
-        <div class="bg-white p-6 rounded-lg shadow-md">
+        <div id="results" class="bg-white p-6 rounded-lg shadow-md">
             <h2 class="text-xl font-semibold mb-4">Search Results</h2>
             {% if use_table %}
             <table id="results-table">
@@ -166,7 +166,7 @@
                         <td>{{ result.state }}</td>
                         <td>{{ result.location }}</td>
                         <td>{{ result.course_level }}</td>
-                        <td>{{ result.branch }}</td>
+                        <td>{{ result.branches | join(', ') }}</td>
                         <td>{{ result.min_score }}</td>
                         <td>{{ result.max_score }}</td>
                         <td>{{ result.fees }}</td>
@@ -182,7 +182,7 @@
                 <p><strong>State:</strong> {{ result.state }}</p>
                 <p><strong>Location:</strong> {{ result.location }}</p>
                 <p><strong>Course Level:</strong> {{ result.course_level }}</p>
-                <p><strong>Branches:</strong> {{ result.branch }}</p>
+                <p><strong>Branches:</strong> {{ result.branches | join(', ') }}</p>
                 <p><strong>Min Score:</strong> {{ result.min_score }}</p>
                 <p><strong>Max Score:</strong> {{ result.max_score }}</p>
                 <p><strong>Fees:</strong> {{ result.fees }}</p>
@@ -199,6 +199,8 @@
             {% endfor %}
             {% endif %}
         </div>
+        {% else %}
+        <div id="results"></div>
         {% endif %}
 
     </div>
@@ -261,8 +263,7 @@
 
             try {
                 const response = await fetch(`/api/results?score=${encodeURIComponent(score)}`);
-                const data = await response.json();
-                const results = data.results;
+                const results = await response.json();
 
                 $('#results').empty();
                 if (results.length === 0) {
@@ -296,7 +297,7 @@
                                 <td>${r.state}</td>
                                 <td>${r.location}</td>
                                 <td>${r.course_level}</td>
-                                <td>${r.branch}</td>
+                                <td>${r.branches.join(', ')}</td>
                                 <td>${r.min_score}</td>
                                 <td>${r.max_score}</td>
                                 <td>${r.fees}</td>
@@ -308,7 +309,7 @@
                     $('#results').html(table);
                 } else {
                     results.forEach(r => {
-                        let surfacesHtml = r.reviews.length > 0
+                        let reviewsHtml = r.reviews.length > 0
                             ? '<p><strong>Reviews:</strong></p><ul class="list-disc pl-5">' +
                               r.reviews.map(review => `<li>${review.review_text} (Rating: ${review.rating})</li>`).join('') +
                               '</ul>'
@@ -319,7 +320,7 @@
                                 <p><strong>State:</strong> ${r.state}</p>
                                 <p><strong>Location:</strong> ${r.location}</p>
                                 <p><strong>Course Level:</strong> ${r.course_level}</p>
-                                <p><strong>Branches:</strong> ${r.branch}</p>
+                                <p><strong>Branches:</strong> ${r.branches.join(', ')}</p>
                                 <p><strong>Min Score:</strong> ${r.min_score}</p>
                                 <p><strong>Max Score:</strong> ${r.max_score}</p>
                                 <p><strong>Fees:</strong> ${r.fees}</p>
@@ -336,7 +337,7 @@
         });
 
         // Rank Card Functionality
-        let rankResultsData = []; // Store fetched results for filtering
+        let rankResultsData = [];
 
         function renderRankTable(results) {
             const rankResultsDiv = $('#rank-results');
@@ -369,7 +370,7 @@
                         <td>${r.state}</td>
                         <td>${r.location}</td>
                         <td>${r.course_level}</td>
-                        <td>${r.branch}</td>
+                        <td>${r.branches.join(', ')}</td>
                         <td>${r.fees}</td>
                         <td>${r.rank}</td>
                     </tr>
@@ -395,9 +396,9 @@
             try {
                 const response = await fetch(`/api/rank?rank=${encodeURIComponent(rank)}`);
                 const data = await response.json();
-                rankResultsData = data.results || [];
+                rankResultsData = data;
                 renderRankTable(rankResultsData);
-                $('#course_filter').val(''); // Reset filter
+                $('#course_filter').val('');
             } catch (error) {
                 console.error('Error fetching rank results:', error);
                 rankErrorDiv.text('Error fetching colleges for this rank.');
