@@ -40,18 +40,18 @@
             color: green;
             font-size: 0.875rem;
         }
-        #results-table th, #results-table td {
+        #results-table th, #results-table td, #rank-table th, #rank-table td {
             border: 1px solid #e5e7eb;
             padding: 8px;
             text-align: left;
         }
-        #results-table th {
+        #results-table th, #rank-table th {
             background-color: #f3f4f6;
         }
-        #results-table tr:nth-child(even) {
+        #results-table tr:nth-child(even), #rank-table tr:nth-child(even) {
             background-color: #f9fafb;
         }
-        #results-table {
+        #results-table, #rank-table {
             width: 100%;
             border-collapse: collapse;
             margin-top: 1rem;
@@ -115,76 +115,29 @@
             </div>
         </form>
 
-        <!-- Excel Upload Form -->
+        <!-- Rank Card Section -->
         <div class="bg-white p-6 rounded-lg shadow-md mb-6">
-            <h2 class="text-xl font-semibold mb-4">Upload Excel File</h2>
-            <form id="excel-upload-form" enctype="multipart/form-data">
-                <div class="mb-4">
-                    <label for="excel_file" class="block text-sm font-medium text-gray-700">Select Excel File (.xlsx, .xls)</label>
-                    <input type="file" id="excel_file" name="file" accept=".xlsx,.xls" class="mt-1 block w-full p-2 border border-gray-300 rounded-md">
+            <h2 class="text-xl font-semibold mb-4">Rank Card</h2>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                <div>
+                    <label for="rank" class="block text-sm font-medium text-gray-700">Rank</label>
+                    <input type="number" id="rank" name="rank" class="mt-1 block w-full p-2 border border-gray-300 rounded-md" placeholder="Enter rank">
                 </div>
                 <div>
-                    <button type="submit" class="w-full bg-green-600 text-white p-2 rounded-md hover:bg-green-700">Upload Excel</button>
+                    <label for="course_filter" class="block text-sm font-medium text-gray-700">Filter by Course Level</label>
+                    <select id="course_filter" class="mt-1 block w-full p-2 border border-gray-300 rounded-md">
+                        <option value="">All</option>
+                        <option value="BTech">BTech</option>
+                        <option value="Diploma">Diploma</option>
+                        <option value="Degree">Degree</option>
+                    </select>
                 </div>
-            </form>
-            <p id="excel-upload-message" class="mt-2 text-center"></p>
-        </div>
-
-        <!-- Add College Form -->
-        <div class="bg-white p-6 rounded-lg shadow-md mb-6">
-            <h2 class="text-xl font-semibold mb-4">Add New College</h2>
-            <form method="POST" action="/add_college">
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                        <label for="name" class="block text-sm font-medium text-gray-700">College Name *</label>
-                        <input type="text" id="name" name="name" class="mt-1 block w-full p-2 border border-gray-300 rounded-md" required>
-                    </div>
-                    <div>
-                        <label for="state" class="block text-sm font-medium text-gray-700">State *</label>
-                        <input type="text" id="add_state" name="state" class="mt-1 block w-full p-2 border border-gray-300 rounded-md" required>
-                    </div>
-                    <div>
-                        <label for="location" class="block text-sm font-medium text-gray-700">Location *</label>
-                        <input type="text" id="add_location" name="location" class="mt-1 block w-full p-2 border border-gray-300 rounded-md" required>
-                    </div>
-                    <div>
-                        <label for="course_level" class="block text-sm font-medium text-gray-700">Course Level *</label>
-                        <select id="add_course_level" name="course_level" class="mt-1 block w-full p-2 border border-gray-300 rounded-md" required>
-                            <option value="">Select Course Level</option>
-                            <option value="BTech">BTech</option>
-                            <option value="Diploma">Diploma</option>
-                            <option value="Degree">Degree</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label for="branch" class="block text-sm font-medium text-gray-700">Branches * (comma-separated)</label>
-                        <input type="text" id="add_branch" name="branch" class="mt-1 block w-full p-2 border border-gray-300 rounded-md" required placeholder="e.g., Computer Science,Mechanical Engineering">
-                    </div>
-                    <div>
-                        <label for="fees" class="block text-sm font-medium text-gray-700">Fees (in INR) *</label>
-                        <input type="number" id="fees" name="fees" class="mt-1 block w-full p-2 border border-gray-300 rounded-md" required>
-                    </div>
-                    <div>
-                        <label for="cutoff_min" class="block text-sm font-medium text-gray-700">Cutoff Min *</label>
-                        <input type="number" id="cutoff_min" name="cutoff_min" class="mt-1 block w-full p-2 border border-gray-300 rounded-md" required>
-                    </div>
-                    <div>
-                        <label for="cutoff_max" class="block text-sm font-medium text-gray-700">Cutoff Max *</label>
-                        <input type="number" id="cutoff_max" name="cutoff_max" class="mt-1 block w-full p-2 border border-gray-300 rounded-md" required>
-                    </div>
-                    <div>
-                        <label for="review_text" class="block text-sm font-medium text-gray-700">Review Text</label>
-                        <textarea id="review_text" name="review_text" class="mt-1 block w-full p-2 border border-gray-300 rounded-md"></textarea>
-                    </div>
-                    <div>
-                        <label for="rating" class="block text-sm font-medium text-gray-700">Rating (1-5)</label>
-                        <input type="number" id="rating" name="rating" min="1" max="5" class="mt-1 block w-full p-2 border border-gray-300 rounded-md">
-                    </div>
+                <div class="flex items-end">
+                    <button id="fetch-rank-results" class="w-full bg-purple-600 text-white p-2 rounded-md hover:bg-purple-700">Fetch Colleges</button>
                 </div>
-                <div class="mt-4">
-                    <button type="submit" class="w-full bg-green-600 text-white p-2 rounded-md hover:bg-green-700">Add College</button>
-                </div>
-            </form>
+            </div>
+            <div id="rank-results"></div>
+            <p id="rank-error" class="error-message text-center mt-2"></p>
         </div>
 
         <!-- Results Section -->
@@ -355,7 +308,7 @@
                     $('#results').html(table);
                 } else {
                     results.forEach(r => {
-                        let reviewsHtml = r.reviews.length > 0
+                        let surfacesHtml = r.reviews.length > 0
                             ? '<p><strong>Reviews:</strong></p><ul class="list-disc pl-5">' +
                               r.reviews.map(review => `<li>${review.review_text} (Rating: ${review.rating})</li>`).join('') +
                               '</ul>'
@@ -382,39 +335,81 @@
             }
         });
 
-        // Excel Upload Form Submission
-        $('#excel-upload-form').on('submit', async (e) => {
-            e.preventDefault();
-            const formData = new FormData();
-            const fileInput = $('#excel_file')[0];
-            if (!fileInput.files.length) {
-                $('#excel-upload-message').removeClass('success-message').addClass('error-message').text('Please select an Excel file.');
+        // Rank Card Functionality
+        let rankResultsData = []; // Store fetched results for filtering
+
+        function renderRankTable(results) {
+            const rankResultsDiv = $('#rank-results');
+            rankResultsDiv.empty();
+
+            if (!results || results.length === 0) {
+                rankResultsDiv.html('<p class="text-center">No colleges found for this rank.</p>');
                 return;
             }
-            formData.append('file', fileInput.files[0]);
+
+            let table = `
+                <table id="rank-table">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>State</th>
+                            <th>Location</th>
+                            <th>Course Level</th>
+                            <th>Branches</th>
+                            <th>Fees</th>
+                            <th>Rank</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+            results.forEach(r => {
+                table += `
+                    <tr>
+                        <td>${r.name}</td>
+                        <td>${r.state}</td>
+                        <td>${r.location}</td>
+                        <td>${r.course_level}</td>
+                        <td>${r.branch}</td>
+                        <td>${r.fees}</td>
+                        <td>${r.rank}</td>
+                    </tr>
+                `;
+            });
+            table += '</tbody></table>';
+            rankResultsDiv.html(table);
+        }
+
+        $('#fetch-rank-results').on('click', async () => {
+            const rank = $('#rank').val().trim();
+            const rankResultsDiv = $('#rank-results');
+            const rankErrorDiv = $('#rank-error');
+
+            rankResultsDiv.empty();
+            rankErrorDiv.empty();
+
+            if (!rank || isNaN(rank)) {
+                rankErrorDiv.text('Please enter a valid rank.');
+                return;
+            }
 
             try {
-                $('#excel-upload-message').text('Uploading...');
-                const response = await fetch('/api/upload_excel', {
-                    method: 'POST',
-                    body: formData
-                });
+                const response = await fetch(`/api/rank?rank=${encodeURIComponent(rank)}`);
                 const data = await response.json();
-
-                if (response.ok) {
-                    $('#excel-upload-message').removeClass('error-message').addClass('success-message').text(
-                        `✅ Excel file processed: ${data.data.summary.inserted_colleges} colleges inserted, ` +
-                        `${data.data.summary.updated_colleges} colleges updated, ` +
-                        `${data.data.summary.inserted_reviews} reviews inserted.`
-                    );
-                    $('#excel_file').val(''); // Reset file input
-                } else {
-                    $('#excel-upload-message').removeClass('success-message').addClass('error-message').text(data.error || 'Error processing Excel file.');
-                }
+                rankResultsData = data.results || [];
+                renderRankTable(rankResultsData);
+                $('#course_filter').val(''); // Reset filter
             } catch (error) {
-                console.error('Error uploading Excel file:', error);
-                $('#excel-upload-message').removeClass('success-message').addClass('error-message').text('Error uploading Excel file.');
+                console.error('Error fetching rank results:', error);
+                rankErrorDiv.text('Error fetching colleges for this rank.');
             }
+        });
+
+        $('#course_filter').on('change', () => {
+            const selectedCourse = $('#course_filter').val();
+            const filteredResults = selectedCourse
+                ? rankResultsData.filter(r => r.course_level === selectedCourse)
+                : rankResultsData;
+            renderRankTable(filteredResults);
         });
     </script>
 </body>
