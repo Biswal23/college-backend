@@ -31,7 +31,6 @@ class CollegeResponse(BaseModel):
     fees: float
     min_score: float
     max_score: float
-    rank: Optional[int]
     branches: List[str]
     avg_rating: Optional[float]
     reviews: List[dict]
@@ -46,7 +45,7 @@ class SearchRequest(BaseModel):
     score: Optional[float]
 
 # Function to fetch and process CSV file from GitHub
-def process_csv_file(github_url: str = os.getenv("GITHUB_CSV_URL", "https://raw.githubusercontent.com/username/repo/main/college_data.csv")):
+def process_csv_file(github_url: str = os.getenv("GITHUB_CSV_URL", "https://github.com/Biswal23/college-backend.git/college_data.csv")):
     try:
         db = SessionLocal()
         # Fetch CSV from GitHub
@@ -58,17 +57,16 @@ def process_csv_file(github_url: str = os.getenv("GITHUB_CSV_URL", "https://raw.
         summary = {'inserted_colleges': 0, 'inserted_branches': 0, 'inserted_reviews': 0}
 
         for _, row in df.iterrows():
-            college = db.query(College).filter_by(name=row['name'], state=row['state'], location=row['location']).first()
+            college = db.query(College).filter_by(name=row['NAME'], state=row['state'], location=row['location']).first()
             if not college:
                 college = College(
-                    name=row['name'],
+                    name=row['NAME'],
                     state=row['state'],
                     location=row['location'],
-                    course_level=row['course_level'],
+                    course_level=row['Course Level'],
                     fees=row['fees'],
                     min_score=row['min_score'],
-                    max_score=row['max_score'],
-                    rank=row['rank'] if pd.notna(row['rank']) else None
+                    max_score=row['max_score']
                 )
                 db.add(college)
                 summary['inserted_colleges'] += 1
@@ -76,12 +74,10 @@ def process_csv_file(github_url: str = os.getenv("GITHUB_CSV_URL", "https://raw.
                 college.fees = row['fees']
                 college.min_score = row['min_score']
                 college.max_score = row['max_score']
-                college.rank = row['rank'] if pd.notna(row['rank']) else None
 
-            # Handle branches
-            branches = row['branches'].split(',') if isinstance(row['branches'], str) else []
-            for branch_name in branches:
-                branch_name = branch_name.strip()
+            # Handle branch (single branch per row)
+            branch_name = row['BRANCHes'].strip() if isinstance(row['BRANCHes'], str) else ''
+            if branch_name:
                 branch = db.query(CollegeBranch).filter_by(college_name=college.name, branch=branch_name).first()
                 if not branch:
                     branch = CollegeBranch(college_name=college.name, branch=branch_name)
@@ -193,7 +189,6 @@ async def search_form(
                 "fees": college.fees,
                 "min_score": college.min_score,
                 "max_score": college.max_score,
-                "rank": college.rank,
                 "branches": branches,
                 "avg_rating": avg_rating,
                 "reviews": reviews
@@ -279,7 +274,6 @@ async def search_colleges(search: SearchRequest):
                 "fees": college.fees,
                 "min_score": college.min_score,
                 "max_score": college.max_score,
-                "rank": college.rank,
                 "branches": branches,
                 "avg_rating": avg_rating,
                 "reviews": reviews
@@ -324,7 +318,6 @@ async def get_results(score: Optional[float] = None):
                 "fees": college.fees,
                 "min_score": college.min_score,
                 "max_score": college.max_score,
-                "rank": college.rank,
                 "branches": branches,
                 "avg_rating": avg_rating,
                 "reviews": reviews
@@ -337,9 +330,8 @@ async def get_results(score: Optional[float] = None):
 async def get_rank(rank: Optional[int] = None):
     db = SessionLocal()
     try:
+        # Since rank is not available in the data, return all colleges
         query = db.query(College)
-        if rank is not None:
-            query = query.filter(College.rank.between(rank - 10, rank + 10))
         colleges = query.all()
         result = []
         for college in colleges:
@@ -354,7 +346,6 @@ async def get_rank(rank: Optional[int] = None):
                 "fees": college.fees,
                 "min_score": college.min_score,
                 "max_score": college.max_score,
-                "rank": college.rank,
                 "branches": branches,
                 "avg_rating": avg_rating,
                 "reviews": reviews
