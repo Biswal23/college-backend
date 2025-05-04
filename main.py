@@ -5,7 +5,6 @@ from pydantic import BaseModel
 from typing import List, Optional
 from database import SessionLocal, engine
 from models import Base, College, CollegeBranch, Review
-import initial_data
 import pandas as pd
 import logging
 import requests
@@ -45,13 +44,11 @@ class SearchRequest(BaseModel):
     score: Optional[float]
 
 # Function to fetch and process CSV file from GitHub
-def process_csv_file(github_url: str = os.getenv("GITHUB_CSV_URL", "https://github.com/Biswal23/college-backend.git/college_data.csv")):
+def process_csv_file(github_url: str = os.getenv("GITHUB_CSV_URL", "https://raw.githubusercontent.com/username/repo/main/college_data.csv")):
     try:
         db = SessionLocal()
-        # Fetch CSV from GitHub
         response = requests.get(github_url, timeout=10)
-        response.raise_for_status()  # Raise an error for bad status codes
-        # Read CSV content into a pandas DataFrame
+        response.raise_for_status()
         df = pd.read_csv(io.StringIO(response.text))
         
         summary = {'inserted_colleges': 0, 'inserted_branches': 0, 'inserted_reviews': 0}
@@ -75,7 +72,6 @@ def process_csv_file(github_url: str = os.getenv("GITHUB_CSV_URL", "https://gith
                 college.min_score = row['min_score']
                 college.max_score = row['max_score']
 
-            # Handle branch (single branch per row)
             branch_name = row['BRANCHes'].strip() if isinstance(row['BRANCHes'], str) else ''
             if branch_name:
                 branch = db.query(CollegeBranch).filter_by(college_name=college.name, branch=branch_name).first()
@@ -84,7 +80,6 @@ def process_csv_file(github_url: str = os.getenv("GITHUB_CSV_URL", "https://gith
                     db.add(branch)
                     summary['inserted_branches'] += 1
 
-            # Handle reviews
             if 'review_text' in row and 'rating' in row and pd.notna(row['review_text']) and pd.notna(row['rating']):
                 review = Review(
                     college_name=college.name,
@@ -104,7 +99,6 @@ def process_csv_file(github_url: str = os.getenv("GITHUB_CSV_URL", "https://gith
     finally:
         db.close()
 
-# Endpoint to trigger CSV processing (for developers or on startup)
 @app.on_event("startup")
 async def startup_event():
     try:
@@ -145,17 +139,21 @@ async def search_form(
     location: Optional[str] = Form(None),
     college_name: Optional[str] = Form(None),
     branch: Optional[str] = Form(None),
-    fees: Optional[float] = Form(None),
-    score: Optional[float] = Form(None)
+    fees: Optional[str] = Form(None),  # Accept as string to handle empty input
+    score: Optional[str] = Form(None)  # Accept as string to handle empty input
 ):
+    # Convert empty strings to None and parse to float
+    fees_value = None if fees == "" or fees is None else float(fees)
+    score_value = None if score == "" or score is None else float(score)
+
     search_data = SearchRequest(
         course_level=course_level,
         state=state,
         location=location,
         college_name=college_name,
         branch=branch,
-        fees=fees,
-        score=score
+        fees=fees_value,
+        score=score_value
     )
     db = SessionLocal()
     try:
@@ -330,7 +328,6 @@ async def get_results(score: Optional[float] = None):
 async def get_rank(rank: Optional[int] = None):
     db = SessionLocal()
     try:
-        # Since rank is not available in the data, return all colleges
         query = db.query(College)
         colleges = query.all()
         result = []
