@@ -1,7 +1,6 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request, Form
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
-from fastapi.requests import Request
 from pydantic import BaseModel
 from typing import List, Optional
 from database import SessionLocal, engine
@@ -103,7 +102,131 @@ def process_excel_file(content: bytes):
 
 @app.get("/", response_class=HTMLResponse)
 async def get_index(request: Request):
-    return templates.TemplateResponse("index.html", {"request": request, "form_data": {}, "results": [], "error": None, "success_message": None, "use_table": False})
+    seo = {
+        "title": "College Finder - Search for Top Colleges",
+        "description": "Find the best colleges based on course level, state, location, fees, and more.",
+        "keywords": "college finder, college search, education, higher education, BTech, Diploma, Degree",
+        "og_title": "College Finder",
+        "og_description": "Search for colleges that match your preferences and academic profile.",
+        "og_url": str(request.url),
+        "twitter_card": "summary"
+    }
+    return templates.TemplateResponse(
+        "index.html",
+        {
+            "request": request,
+            "form_data": {},
+            "results": [],
+            "error": None,
+            "success_message": None,
+            "use_table": False,
+            "seo": seo
+        }
+    )
+
+@app.post("/", response_class=HTMLResponse)
+async def search_form(
+    request: Request,
+    course_level: str = Form(...),
+    state: Optional[str] = Form(None),
+    location: Optional[str] = Form(None),
+    college_name: Optional[str] = Form(None),
+    branch: Optional[str] = Form(None),
+    fees: Optional[float] = Form(None),
+    score: Optional[float] = Form(None)
+):
+    search_data = SearchRequest(
+        course_level=course_level,
+        state=state,
+        location=location,
+        college_name=college_name,
+        branch=branch,
+        fees=fees,
+        score=score
+    )
+    db = SessionLocal()
+    try:
+        query = db.query(College)
+        if search_data.course_level:
+            query = query.filter(College.course_level == search_data.course_level)
+        if search_data.state:
+            query = query.filter(College.state.ilike(f"%{search_data.state}%"))
+        if search_data.location:
+            query = query.filter(College.location.ilike(f"%{search_data.location}%"))
+        if search_data.college_name:
+            query = query.filter(College.name.ilike(f"%{search_data.college_name}%"))
+        if search_data.fees is not None:
+            query = query.filter(College.fees <= search_data.fees)
+        if search_data.score is not None:
+            query = query.filter(College.min_score <= search_data.score, College.max_score >= search_data.score)
+        if search_data.branch:
+            query = query.join(CollegeBranch).filter(CollegeBranch.branch.ilike(f"%{search_data.branch}%"))
+
+        colleges = query.all()
+        results = []
+        for college in colleges:
+            branches = [branch.branch for branch in college.branches]
+            reviews = [{"review_text": r.review_text, "rating": r.rating} for r in college.reviews]
+            avg_rating = sum(r.rating for r in college.reviews) / len(college.reviews) if college.reviews else 0
+            results.append({
+                "name": college.name,
+                "state": college.state,
+                "location": college.location,
+                "course_level": college.course_level,
+                "fees": college.fees,
+                "min_score": college.min_score,
+                "max_score": college.max_score,
+                "rank": college.rank,
+                "branches": branches,
+                "avg_rating": avg_rating,
+                "reviews": reviews
+            })
+        seo = {
+            "title": "College Finder - Search Results",
+            "description": "View college search results based on your preferences.",
+            "keywords": "college search results, college finder, education",
+            "og_title": "College Finder - Search Results",
+            "og_description": "Find colleges matching your criteria.",
+            "og_url": str(request.url),
+            "twitter_card": "summary"
+        }
+        return templates.TemplateResponse(
+            "index.html",
+            {
+                "request": request,
+                "form_data": search_data.dict(),
+                "results": results,
+                "error": None,
+                "success_message": f"Found {len(results)} colleges matching your criteria.",
+                "use_table": len(results) > 5,
+                "seo": seo
+            }
+        )
+    except Exception as e:
+        logger.error(f"Error processing search: {e}")
+        seo = {
+            "title": "College Finder - Search Error",
+            "description": "An error occurred while searching for colleges.",
+            "keywords": "college finder, college search, education",
+            "og_title": "College Finder - Search Error",
+            "og_description": "An error occurred while searching for colleges.",
+            "og_url": str(request.url),
+            "twitter_card": "summary"
+        }
+        return templates.TemplateResponse(
+            "index.html",
+            {
+                "request": request,
+                "form_data": search_data.dict(),
+                "results": [],
+                "error": "An error occurred while searching. Please try again.",
+                "success_message": None,
+                "use_table": False,
+                "seo": seo
+            }
+        )
+    finally:
+        db.close()
 
 @app.post("/api/search", response_model=List[CollegeResponse])
 async def search_colleges(search: SearchRequest):
@@ -199,7 +322,6 @@ async def get_rank(rank: Optional[int] = None):
     try:
         query = db.query(College)
         if rank is not None:
-            # Fetch colleges within ±10 ranks for flexibility
             query = query.filter(College.rank.between(rank - 10, rank + 10))
         colleges = query.all()
         result = []
