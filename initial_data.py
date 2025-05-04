@@ -16,7 +16,7 @@ def init_db():
                 name="Sample Institute of Technology",
                 state="Odisha",
                 location="Bhubaneswar",
-                course_level="UG",
+                course_level="btech",
                 fees=100000.0,
                 min_score=500000.0,
                 max_score=1000000.0
