@@ -1,780 +1,436 @@
-from fastapi import FastAPI, Request, Form, HTTPException, Depends, UploadFile, File
-from fastapi.responses import HTMLResponse, JSONResponse
-from fastapi.templating import Jinja2Templates
-from fastapi.staticfiles import StaticFiles
-from database import SessionLocal, engine, Base
-from models import College, Review
-from typing import Optional
-from sqlalchemy.orm import Session
-from sqlalchemy import or_
-import os
-from initial_data import initialize_database, process_excel_file
+from fastapi import FastAPI, HTTPException, UploadFile, File
+from fastapi.responses import HTMLResponse
+from pydantic import BaseModel
+from typing import List, Optional
+from database import SessionLocal, engine
+from models import Base, College, CollegeBranch, Review
+import initial_data
 import logging
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Initialize FastAPI app
+# Create database tables
+Base.metadata.create_all(bind=engine)
+
 app = FastAPI()
 
-# Mount static files if directory exists
-if os.path.exists("static"):
-    app.mount("/static", StaticFiles(directory="static"), name="static")
+# Pydantic models for request/response
+class ReviewCreate(BaseModel):
+    college_name: str
+    review_text: str
+    rating: float
 
-# Initialize templates
-templates = Jinja2Templates(directory="templates")
+class CollegeCreate(BaseModel):
+    name: str
+    state: str
+    location: str
+    course_level: str
+    fees: float
+    cutoff_min: float
+    cutoff_max: float
+    branches: List[str]
 
-# Create database tables
-try:
-    Base.metadata.create_all(bind=engine)
-    logger.info("✅ Database tables created successfully")
-    # Verify schema
-    db = SessionLocal()
-    try:
-        db.execute("SELECT cutoff_min, cutoff_max FROM colleges LIMIT 1")
-        logger.info("✅ Schema verified: 'cutoff_min' and 'cutoff_max' columns exist")
-    except Exception as e:
-        logger.error(f"❌ Schema verification failed: {e}")
-    finally:
-        db.close()
-except Exception as e:
-    logger.error(f"❌ Error creating database tables: {e}")
+class CollegeResponse(BaseModel):
+    name: str
+    state: str
+    location: str
+    course_level: str
+    fees: float
+    cutoff_min: float
+    cutoff_max: float
+    branches: List[str]
 
-# Initialize database with sample data
-try:
-    initialize_database()
-except Exception as e:
-    logger.error(f"❌ Error initializing database: {e}")
+class ReviewResponse(BaseModel):
+    college_name: str
+    review_text: str
+    rating: float
 
-# College name mappings to normalize user input
-COLLEGE_MAPPINGS = {
-    "tech college": "Tech College",
-    "science college": "Science College",
-    "eng college": "Engineering College",
-    "commerce institute": "Commerce Institute",
-    "polytechnic institute": "Polytechnic Institute",
-}
-
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
-
+# HTML for the frontend
 @app.get("/", response_class=HTMLResponse)
-async def index(request: Request):
+async def get_index():
+    return """
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>College Database</title>
+        <style>
+            body { font-family: Arial, sans-serif; margin: 20px; }
+            h1 { color: #333; }
+            .section { margin-bottom: 20px; }
+            .error { color: red; }
+            table { border-collapse: collapse; width: 100%; }
+            th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+            th { background-color: #f2f2f2; }
+            tr:nth-child(even) { background-color: #f9f9f9; }
+            tr:hover { background-color: #f1f1f1; }
+            input { margin: 5px; padding: 5px; }
+            button { padding: 5px 10px; }
+        </style>
+    </head>
+    <body>
+        <h1>College Database</h1>
+
+        <div class="section">
+            <h2>Upload Excel File</h2>
+            <input type="file" id="excelFile" accept=".xlsx">
+            <button onclick="uploadExcel()">Upload</button>
+            <p id="uploadMessage"></p>
+        </div>
+
+        <div class="section">
+            <h2>Add College</h2>
+            <input type="text" id="name" placeholder="College Name" required>
+            <input type="text" id="state" placeholder="State" required>
+            <input type="text" id="location" placeholder="Location" required>
+            <input type="text" id="courseLevel" placeholder="Course Level (BTech/Diploma/Degree)" required>
+            <input type="text" id="branches" placeholder="Branches (comma-separated)" required>
+            <input type="number" id="fees" placeholder="Fees" step="0.01" required>
+            <input type="number" id="cutoffMin" placeholder="Cutoff Rank (Min)" step="0.01" required>
+            <input type="number" id="cutoffMax" placeholder="Cutoff Rank (Max)" step="0.01" required>
+            <button onclick="addCollege()">Add College</button>
+            <p id="addMessage"></p>
+        </div>
+
+        <div class="section">
+            <h2>Search Colleges</h2>
+            <input type="text" id="searchQuery" placeholder="Search by name, state, location, course level, or branches">
+            <button onclick="searchColleges()">Search</button>
+            <table id="collegeTable">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>State</th>
+                        <th>Location</th>
+                        <th>Course Level</th>
+                        <th>Branches</th>
+                        <th>Fees</th>
+                        <th>Cutoff Rank (Min)</th>
+                        <th>Cutoff Rank (Max)</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+
+        <script>
+            async function uploadExcel() {
+                const fileInput = document.getElementById('excelFile');
+                const message = document.getElementById('uploadMessage');
+                if (!fileInput.files.length) {
+                    message.innerHTML = '<span class="error">Please select a file.</span>';
+                    return;
+                }
+
+                const formData = new FormData();
+                formData.append('file', fileInput.files[0]);
+
+                try {
+                    const response = await fetch('/api/upload_excel', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    const result = await response.json();
+                    if (response.ok) {
+                        message.innerHTML = `Successfully uploaded! ${result.summary.inserted_colleges} colleges inserted, ${result.summary.inserted_branches} branches inserted, ${result.summary.inserted_reviews} reviews inserted.`;
+                    } else {
+                        message.innerHTML = `<span class="error">Error: ${result.detail}</span>`;
+                    }
+                } catch (error) {
+                    message.innerHTML = `<span class="error">Error uploading file: ${error.message}</span>`;
+                }
+            }
+
+            async function addCollege() {
+                const name = document.getElementById('name').value;
+                const state = document.getElementById('state').value;
+                const location = document.getElementById('location').value;
+                const courseLevel = document.getElementById('courseLevel').value;
+                const branches = document.getElementById('branches').value.split(',').map(b => b.trim()).filter(b => b);
+                const fees = parseFloat(document.getElementById('fees').value);
+                const cutoffMin = parseFloat(document.getElementById('cutoffMin').value);
+                const cutoffMax = parseFloat(document.getElementById('cutoffMax').value);
+                const message = document.getElementById('addMessage');
+
+                // Client-side validation
+                if (!name || !state || !location || !courseLevel || !branches.length) {
+                    message.innerHTML = '<span class="error">All fields are required.</span>';
+                    return;
+                }
+                if (isNaN(fees) || isNaN(cutoffMin) || isNaN(cutoffMax)) {
+                    message.innerHTML = '<span class="error">Fees, Cutoff Rank (Min), and Cutoff Rank (Max) must be valid numbers.</span>';
+                    return;
+                }
+                if (fees < 0 || cutoffMin < 0 || cutoffMax < 0) {
+                    message.innerHTML = '<span class="error">Fees, Cutoff Rank (Min), and Cutoff Rank (Max) must be non-negative.</span>';
+                    return;
+                }
+                if (cutoffMin > cutoffMax) {
+                    message.innerHTML = '<span class="error">Cutoff Rank (Min) must be less than or equal to Cutoff Rank (Max).</span>';
+                    return;
+                }
+
+                try {
+                    const response = await fetch('/api/colleges', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            name, state, location, course_level: courseLevel,
+                            branches, fees, cutoff_min: cutoffMin, cutoff_max: cutoffMax
+                        })
+                    });
+                    const result = await response.json();
+                    if (response.ok) {
+                        message.innerHTML = 'College added successfully!';
+                        // Clear form
+                        document.getElementById('name').value = '';
+                        document.getElementById('state').value = '';
+                        document.getElementById('location').value = '';
+                        document.getElementById('courseLevel').value = '';
+                        document.getElementById('branches').value = '';
+                        document.getElementById('fees').value = '';
+                        document.getElementById('cutoffMin').value = '';
+                        document.getElementById('cutoffMax').value = '';
+                    } else {
+                        message.innerHTML = `<span class="error">Error: ${result.detail}</span>`;
+                    }
+                } catch (error) {
+                    message.innerHTML = `<span class="error">Error adding college: ${error.message}</span>`;
+                }
+            }
+
+            async function searchColleges() {
+                const query = document.getElementById('searchQuery').value;
+                const tbody = document.querySelector('#collegeTable tbody');
+                tbody.innerHTML = '';
+
+                try {
+                    const response = await fetch(`/api/colleges/search?query=${encodeURIComponent(query)}`);
+                    const colleges = await response.json();
+                    if (response.ok) {
+                        colleges.forEach(college => {
+                            const row = document.createElement('tr');
+                            row.innerHTML = `
+                                <td>${college.name}</td>
+                                <td>${college.state}</td>
+                                <td>${college.location}</td>
+                                <td>${college.course_level}</td>
+                                <td>${college.branches.join(', ')}</td>
+                                <td>${college.fees}</td>
+                                <td>${college.cutoff_min}</td>
+                                <td>${college.cutoff_max}</td>
+                            `;
+                            tbody.appendChild(row);
+                        });
+                    } else {
+                        tbody.innerHTML = '<tr><td colspan="8" class="error">Error fetching colleges.</td></tr>';
+                    }
+                } catch (error) {
+                    tbody.innerHTML = `<tr><td colspan="8" class="error">Error: ${error.message}</td></tr>`;
+                }
+            }
+        </script>
+    </body>
+    </html>
+    """
+
+# API Endpoints
+@app.post("/api/upload_excel")
+async def upload_excel(file: UploadFile = File(...)):
+    if not file.filename.endswith('.xlsx'):
+        raise HTTPException(status_code=400, detail="Only .xlsx files are supported.")
+    try:
+        content = await file.read()
+        result = initial_data.process_excel_file(content)
+        return {"message": "Excel file processed successfully", "data": result}
+    except Exception as e:
+        logger.error(f"Error processing Excel file: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/colleges", response_model=List[CollegeResponse])
+def get_colleges():
     db = SessionLocal()
     try:
         colleges = db.query(College).all()
-        logger.info(f"GET /: Found {len(colleges)} colleges in database")
-        if not colleges:
-            logger.warning("GET /: Warning: No colleges found in database!")
+        result = []
+        for college in colleges:
+            branches = [branch.branch for branch in college.branches]
+            result.append({
+                "name": college.name,
+                "state": college.state,
+                "location": college.location,
+                "course_level": college.course_level,
+                "fees": college.fees,
+                "cutoff_min": college.cutoff_min,
+                "cutoff_max": college.cutoff_max,
+                "branches": branches
+            })
+        return result
+    finally:
+        db.close()
+
+@app.get("/api/colleges/search", response_model=List[CollegeResponse])
+def search_colleges(query: Optional[str] = None):
+    db = SessionLocal()
+    try:
+        if not query:
+            colleges = db.query(College).all()
         else:
-            logger.info(f"GET /: Colleges: {[c.name for c in colleges]}")
+            query_lower = query.lower()
+            # Search in College table
+            colleges = db.query(College).filter(
+                (College.name.ilike(f"%{query_lower}%")) |
+                (College.state.ilike(f"%{query_lower}%")) |
+                (College.location.ilike(f"%{query_lower}%")) |
+                (College.course_level.ilike(f"%{query_lower}%"))
+            ).all()
 
-        # Generate suggestions
-        all_branches = set()
+            # Search in CollegeBranch table
+            branch_matches = db.query(CollegeBranch).filter(
+                CollegeBranch.branch.ilike(f"%{query_lower}%")
+            ).all()
+            branch_college_names = {branch.college_name for branch in branch_matches}
+            branch_colleges = db.query(College).filter(College.name.in_(branch_college_names)).all()
+
+            # Combine results and remove duplicates
+            college_names = {college.name for college in colleges}
+            college_names.update(branch_college_names)
+            colleges = db.query(College).filter(College.name.in_(college_names)).all()
+
+        result = []
         for college in colleges:
-            if college.branch:
-                all_branches.update(b.strip() for b in college.branch.split(','))
-        all_suggestions = {
-            "college_name": sorted([c.name for c in colleges], key=str.lower),
-            "location": sorted([c.location for c in colleges if c.location], key=str.lower),
-            "state": sorted([c.state for c in colleges if c.state], key=str.lower),
-            "branch": sorted(all_branches, key=str.lower)
-        }
-        logger.info(f"GET /: Initial suggestions: {all_suggestions}")
-        if not any(all_suggestions.values()):
-            logger.error("GET /: Error: Suggestions are empty! Check database data.")
-
-        # SEO metadata
-        states = sorted(set(c.state for c in colleges if c.state))
-        locations = sorted(set(c.location for c in colleges if c.location))
-        seo_metadata = {
-            "title": "Find Top Colleges in India | BTech, Diploma, Degree",
-            "description": f"Discover top colleges in {', '.join(states[:3]) + ' and more' if states else 'India'} for BTech, Diploma, and Degree courses. Filter by state, district, fees, and cutoff scores.",
-            "keywords": f"colleges in India, {', '.join(states)}, {', '.join(locations[:5])}, BTech colleges, Diploma colleges, Degree colleges",
-            "og_title": "Best Colleges in India - Find Your Perfect Institute",
-            "og_description": f"Explore colleges in {', '.join(states[:2]) + ' and other states' if states else 'India'} with detailed reviews and filters.",
-            "og_url": str(request.url),
-            "twitter_card": "summary_large_image"
-        }
-
-    except Exception as e:
-        logger.error(f"❌ GET /: Error loading suggestions: {e}")
-        all_suggestions = {"college_name": [], "location": [], "state": [], "branch": []}
-        seo_metadata = {
-            "title": "Find Colleges in India",
-            "description": "Search for colleges in India by course, state, and more.",
-            "keywords": "colleges, India, education",
-            "og_title": "Find Colleges in India",
-            "og_description": "Search for colleges in India.",
-            "og_url": str(request.url),
-            "twitter_card": "summary"
-        }
-    finally:
-        db.close()
-
-    context = {
-        "request": request,
-        "results": [],
-        "suggestions": all_suggestions,
-        "error": None,
-        "form_data": {},
-        "seo": seo_metadata,
-        "use_table": False
-    }
-    logger.info(f"GET /: Context passed to template: {context}")
-    return templates.TemplateResponse("index.html", context)
-
-@app.post("/", response_class=HTMLResponse)
-async def index_post(
-    request: Request,
-    course_level: str = Form(...),
-    state: Optional[str] = Form(default=""),
-    location: Optional[str] = Form(default=""),
-    college_name: Optional[str] = Form(default=""),
-    branch: Optional[str] = Form(default=""),
-    fees: Optional[str] = Form(default=""),
-    score: Optional[str] = Form(default="")
-):
-    db = SessionLocal()
-    try:
-        # Validation
-        if not course_level:
-            raise HTTPException(status_code=400, detail="Course level is required.")
-        allowed_course_levels = ["BTech", "Diploma", "Degree"]
-        if course_level not in allowed_course_levels:
-            raise HTTPException(status_code=400, detail=f"Course level must be one of {allowed_course_levels}.")
-
-        # Normalize inputs
-        state = state.strip() if state else ""
-        location = location.strip() if location else ""
-        college_name = college_name.strip() if college_name else ""
-        branch = branch.strip() if branch else ""
-
-        # Apply college name mapping
-        college_name_lower = college_name.lower()
-        if college_name_lower in COLLEGE_MAPPINGS:
-            college_name = COLLEGE_MAPPINGS[college_name_lower]
-        logger.info(f"POST /: Inputs - course_level: {course_level}, state: {state}, location: {location}, college_name: {college_name}, branch: {branch}, fees: {fees}, score: {score}")
-
-        # Base query
-        query = db.query(College).filter(College.course_level == course_level)
-
-        # Apply filters with exact matching
-        if state:
-            query = query.filter(College.state == state)
-        if location:
-            query = query.filter(College.location == location)
-        if college_name:
-            query = query.filter(College.name == college_name)
-        if branch:
-            # Match any branch in the comma-separated list
-            query = query.filter(College.branch.contains(branch))
-        if fees:
-            try:
-                fees_value = float(fees)
-                lower_fee = (fees_value // 100000) * 100000
-                upper_fee = lower_fee + 100000
-                query = query.filter(College.fees.between(lower_fee, upper_fee))
-            except ValueError:
-                logger.warning(f"POST /: Invalid fees input: {fees}")
-        if score:
-            try:
-                score_value = float(score)
-                query = query.filter(College.cutoff_min <= score_value, College.cutoff_max >= score_value)
-            except ValueError:
-                logger.warning(f"POST /: Invalid score input: {score}")
-
-        colleges = query.all()
-        logger.info(f"POST /: Query results count: {len(colleges)}")
-
-        # If no optional filters, show all for the mandatory course_level
-        if not any([state, location, college_name, branch, fees, score]):
-            colleges = db.query(College).filter(College.course_level == course_level).all()
-            logger.info(f"POST /: All colleges for {course_level}: {len(colleges)}")
-
-        # Format results
-        results = []
-        for college in colleges:
-            reviews = db.query(Review).filter(Review.college_name == college.name).all()
-            avg_rating = sum(r.rating for r in reviews) / len(reviews) if reviews else 0
-            results.append({
+            branches = [branch.branch for branch in college.branches]
+            result.append({
                 "name": college.name,
                 "state": college.state,
                 "location": college.location,
                 "course_level": college.course_level,
-                "branch": college.branch,  # Comma-separated string
-                "min_score": college.cutoff_min,
-                "max_score": college.cutoff_max,
                 "fees": college.fees,
-                "avg_rating": avg_rating,
-                "reviews": [{"review_text": r.review_text, "rating": r.rating} for r in reviews[:2]]
+                "cutoff_min": college.cutoff_min,
+                "cutoff_max": college.cutoff_max,
+                "branches": branches
             })
-
-        # Generate autosuggestions based on exact matches
-        all_colleges = db.query(College).all()
-        existing_college_names = [c.name for c in all_colleges]
-        existing_locations = [c.location for c in all_colleges if c.location]
-        existing_states = [c.state for c in all_colleges if c.state]
-        existing_branches = set()
-        for c in all_colleges:
-            if c.branch:
-                existing_branches.update(b.strip() for b in c.branch.split(','))
-
-        suggestions = {
-            "college_name": sorted(
-                set(c.name for c in colleges if c.name and (not college_name or college_name == c.name)),
-                key=lambda x: x.lower()
-            ),
-            "location": sorted(
-                set(c.location for c in colleges if c.location and (not location or location == c.location)),
-                key=lambda x: x.lower()
-            ),
-            "state": sorted(
-                set(c.state for c in colleges if c.state and (not state or state == c.state)),
-                key=lambda x: x.lower()
-            ),
-            "branch": sorted(
-                set(b.strip() for c in colleges for b in c.branch.split(',') if c.branch and (not branch or branch in c.branch)),
-                key=lambda x: x.lower()
-            )
-        }
-        logger.info(f"POST /: Generated suggestions: {suggestions}")
-        if not any(suggestions.values()):
-            logger.error("POST /: Error: Suggestions are empty! Check database data.")
-
-        # Check for invalid inputs and provide specific error messages
-        error_message = None
-        if not results:
-            if state and state not in existing_states:
-                error_message = f"Result fetching error: No matching colleges found for state '{state}'."
-            elif location and location not in existing_locations:
-                error_message = f"Result fetching error: No matching colleges found for location '{location}'."
-            elif college_name and college_name not in existing_college_names:
-                error_message = f"Result fetching error: No matching colleges found for college name '{college_name}'."
-            elif branch and not any(branch in b for c in all_colleges for b in c.branch.split(',')):
-                error_message = f"Result fetching error: No matching colleges found for branch '{branch}'."
-            elif score and not score.isdigit():
-                error_message = f"Result fetching error: Score '{score}' is invalid."
-            else:
-                error_message = "No colleges found matching your criteria."
-
-        # SEO metadata for search results
-        states = sorted(set(c.state for c in colleges if c.state))
-        locations = sorted(set(c.location for c in colleges if c.location))
-        seo_metadata = {
-            "title": f"Top {course_level} Colleges in {state or 'India'} | Search Results",
-            "description": f"Find {course_level} colleges in {state or 'India'}, {location or 'various districts'}. Filter by fees, cutoff score, and branch.",
-            "keywords": f"{course_level} colleges, {state or 'India'}, {location or 'districts'}, {', '.join(suggestions['branch'][:3])}, college search",
-            "og_title": f"Search {course_level} Colleges in {state or 'India'}",
-            "og_description": f"Explore {course_level} colleges in {state or 'India'} with filters for cutoff, fees, and more.",
-            "og_url": str(request.url),
-            "twitter_card": "summary_large_image"
-        }
-
-        context = {
-            "request": request,
-            "results": sorted(results, key=lambda x: (-x["avg_rating"], x["fees"])),
-            "suggestions": suggestions,
-            "error": error_message,
-            "form_data": {
-                "course_level": course_level,
-                "state": state,
-                "location": location,
-                "college_name": college_name,
-                "branch": branch,
-                "fees": fees,
-                "score": score
-            },
-            "seo": seo_metadata,
-            "use_table": len(results) > 5
-        }
-        logger.info(f"POST /: Context passed to template: {context}")
-        return templates.TemplateResponse("index.html", context)
-
-    except Exception as e:
-        logger.error(f"❌ POST /: Search error: {e}")
-        seo_metadata = {
-            "title": "Error - College Search",
-            "description": "An error occurred while searching for colleges.",
-            "keywords": "college search, India",
-            "og_title": "Error - College Search",
-            "og_description": "An error occurred while searching for colleges.",
-            "og_url": str(request.url),
-            "twitter_card": "summary"
-        }
-        return templates.TemplateResponse(
-            "index.html",
-            {
-                "request": request,
-                "results": [],
-                "suggestions": {"college_name": [], "location": [], "state": [], "branch": []},
-                "error": f"An error occurred while searching: {str(e)}",
-                "form_data": {
-                    "course_level": course_level,
-                    "state": state,
-                    "location": location,
-                    "college_name": college_name,
-                    "branch": branch,
-                    "fees": fees,
-                    "score": score
-                },
-                "seo": seo_metadata,
-                "use_table": False
-            }
-        )
+        return result
     finally:
         db.close()
 
-@app.post("/api/search")
-async def search(
-    course_level: str = Form(...),
-    state: Optional[str] = Form(default=""),
-    location: Optional[str] = Form(default=""),
-    college_name: Optional[str] = Form(default=""),
-    branch: Optional[str] = Form(default=""),
-    fees: Optional[str] = Form(default=""),
-    score: Optional[str] = Form(default="")
-):
+@app.post("/api/colleges", response_model=CollegeResponse)
+def add_college(college: CollegeCreate):
     db = SessionLocal()
     try:
-        if not course_level:
-            return JSONResponse(content={"error": "Course level is required"}, status_code=400)
+        # Validate course_level
         allowed_course_levels = ["BTech", "Diploma", "Degree"]
-        if course_level not in allowed_course_levels:
-            return JSONResponse(content={"error": f"Course level must be one of {allowed_course_levels}"}, status_code=400)
-
-        # Normalize inputs
-        state = state.strip() if state else ""
-        location = location.strip() if location else ""
-        college_name = college_name.strip() if college_name else ""
-        branch = branch.strip() if branch else ""
-
-        # Apply college name mapping
-        if college_name.lower() in COLLEGE_MAPPINGS:
-            college_name = COLLEGE_MAPPINGS[college_name.lower()]
-
-        query = db.query(College).filter(College.course_level == course_level)
-
-        # Filters with exact matching
-        if state:
-            query = query.filter(College.state == state)
-        if location:
-            query = query.filter(College.location == location)
-        if college_name:
-            query = query.filter(College.name == college_name)
-        if branch:
-            # Match any branch in the comma-separated list
-            query = query.filter(College.branch.contains(branch))
-        if fees:
-            try:
-                max_fees = float(fees)
-                query = query.filter(College.fees <= max_fees)
-            except ValueError:
-                logger.warning(f"POST /api/search: Invalid fees input: {fees}")
-        if score:
-            try:
-                score_value = float(score)
-                query = query.filter(College.cutoff_min <= score_value, College.cutoff_max >= score_value)
-            except ValueError:
-                logger.warning(f"POST /api/search: Invalid score input: {score}")
-
-        colleges = query.all()
-
-        # Deduplicate colleges
-        seen = set()
-        deduplicated_colleges = []
-        for college in colleges:
-            key = (college.name, college.state, college.location, college.course_level, college.branch)
-            if key not in seen:
-                seen.add(key)
-                deduplicated_colleges.append(college)
-
-        # Format results
-        results = []
-        for college in deduplicated_colleges:
-            reviews = db.query(Review).filter(Review.college_name == college.name).all()
-            results.append({
-                "name": college.name,
-                "state": college.state,
-                "location": college.location,
-                "course_level": college.course_level,
-                "branch": college.branch,  # Comma-separated string
-                "min_score": college.cutoff_min,
-                "max_score": college.cutoff_max,
-                "fees": college.fees,
-                "reviews": [{"review_text": r.review_text, "rating": r.rating} for r in reviews]
-            })
-
-        # Generate autosuggestions
-        all_colleges = db.query(College).all()
-        all_branches = set()
-        for c in all_colleges:
-            if c.branch:
-                all_branches.update(b.strip() for b in c.branch.split(','))
-        suggestions = {
-            "college_name": sorted(
-                [c.name for c in all_colleges if not college_name or college_name == c.name],
-                key=str.lower
-            ),
-            "location": sorted(
-                [c.location for c in all_colleges if c.location and (not location or location == c.location)],
-                key=str.lower
-            ),
-            "state": sorted(
-                [c.state for c in all_colleges if c.state and (not state or state == c.state)],
-                key=str.lower
-            ),
-            "branch": sorted(
-                list(all_branches),
-                key=str.lower
-            )
-        }
-
-        return {"results": results, "suggestions": suggestions}
-
-    except Exception as e:
-        logger.error(f"❌ POST /api/search: Error: {e}")
-        return JSONResponse(content={"error": "An error occurred while searching"}, status_code=500)
-    finally:
-        db.close()
-
-@app.post("/api/submit_review")
-async def submit_review(
-    college_name: str = Form(...),
-    review_text: str = Form(...),
-    rating: str = Form(...)
-):
-    db = SessionLocal()
-    try:
-        if not college_name or not review_text or not rating:
-            return JSONResponse(content={"error": "College name, review text, and rating are required"}, status_code=400)
-
-        try:
-            rating_value = float(rating)
-            if not (1 <= rating_value <= 5):
-                return JSONResponse(content={"error": "Rating must be between 1 and 5"}, status_code=400)
-        except ValueError:
-            return JSONResponse(content={"error": "Invalid rating format"}, status_code=400)
-
-        # Check if college exists
-        college = db.query(College).filter(College.name == college_name).first()
-        if not college:
-            return JSONResponse(content={"error": "College not found"}, status_code=404)
-
-        # Add review
-        new_review = Review(
-            college_name=college_name,
-            review_text=review_text,
-            rating=rating_value
-        )
-        db.add(new_review)
-        db.commit()
-
-        return {"message": "Review submitted successfully"}
-
-    except Exception as e:
-        logger.error(f"❌ Error submitting review: {e}")
-        return JSONResponse(content={"error": f"Database error: {str(e)}"}, status_code=500)
-    finally:
-        db.close()
-
-@app.post("/api/upload_excel")
-async def upload_excel(file: UploadFile = File(...)):
-    """
-    Upload an Excel file to update the database with college and review data.
-    """
-    try:
-        # Validate file type
-        if not file.filename.endswith(('.xlsx', '.xls')):
-            return JSONResponse(
-                content={"error": "Invalid file format. Only .xlsx or .xls files are allowed."},
-                status_code=400
-            )
-
-        # Read file content
-        content = await file.read()
-        logger.info(f"Received Excel file: {file.filename}, size: {len(content)} bytes")
-
-        # Process Excel file and update database
-        json_data = process_excel_file(content)
-
-        return {
-            "message": "Excel file processed successfully",
-            "data": json_data
-        }
-
-    except ValueError as ve:
-        logger.error(f"❌ Validation error processing Excel file: {ve}")
-        return JSONResponse(content={"error": str(ve)}, status_code=400)
-    except Exception as e:
-        logger.error(f"❌ Error processing Excel file: {e}")
-        return JSONResponse(content={"error": f"Server error: {str(e)}"}, status_code=500)
-
-@app.post("/add_college", response_class=HTMLResponse)
-async def add_college(
-    request: Request,
-    name: str = Form(...),
-    state: str = Form(...),
-    location: str = Form(...),
-    course_level: str = Form(...),
-    branch: str = Form(...),  # Accept comma-separated branches
-    fees: float = Form(...),
-    cutoff_min: float = Form(...),
-    cutoff_max: float = Form(...),
-    review_text: Optional[str] = Form(default=""),
-    rating: Optional[int] = Form(default=None)
-):
-    db = SessionLocal()
-    try:
-        if not all([name, state, location, course_level, branch, fees, cutoff_min, cutoff_max]):
-            raise HTTPException(status_code=400, detail="All fields except review and rating are required.")
-
-        allowed_course_levels = ["BTech", "Diploma", "Degree"]
-        if course_level not in allowed_course_levels:
-            raise HTTPException(status_code=400, detail=f"Course level must be one of {allowed_course_levels}.")
+        if college.course_level not in allowed_course_levels:
+            raise HTTPException(status_code=400, detail=f"Invalid course_level. Must be one of {allowed_course_levels}")
 
         # Validate branches
         allowed_branches = {
-            "BTech": ["Mechanical Engineering", "Computer Science", "Civil Engineering", "Electronics and Telecommunication"],
-            "Diploma": ["Mechanical Engineering", "Computer Science", "Civil Engineering", "Electronics and Telecommunication"],
-            "Degree": ["Science", "Commerce", "Arts"]
+            "BTech": [
+                "Mechanical Engineering", "Computer Science", "Civil Engineering", 
+                "Electronics and Telecommunication", "Electrical Engineering",
+                "Computer Science and Engineering", "Chemical Engineering",
+                "Metallurgical and Materials Engineering", "Production Engineering",
+                "Electrical and Electronics Engineering", "Information Technology",
+                "Electronics & Communication Engineering", "Textile Engineering",
+                "Bio Technology", "Fashion & Apparel Technology", 
+                "Electronics & Instrumentation Engineering", "Plastic Engineering",
+                "Manufacturing Engineering & Technology", "Automobile Engineering",
+                "Mining Engineering", "Mineral Engineering", "Aeronautical Engineering",
+                "Computer Engineering", "Computer Science & Technology",
+                "Computer Science and Information Technology",
+                "Computer Science Engineering (Artificial Intelligence and Machine Learning)",
+                "Computer Science & Engineering (Data Science)",
+                "Computer Science & Engineering (IoT and Cyber Security Including block chain technology)",
+                "Electrical and Computer Engineering", "Electronics and Computer Engineering",
+                "Agriculture Engineering", "Applied Electronics & Instrumentation",
+                "Integrated M.Sc. in Material Science and Engg",
+                "Integrated MSc in Applied Chemistry", "Integrated MSc in Applied Physics",
+                "Integrated MSc in Mathematics and Computing", "B ARCH", "B. PLAN"
+            ],
+            "Diploma": ["Mechanical Engineering", "Computer Science", "Civil Engineering", 
+                        "Electronics and Telecommunication"],
+            "Degree": ["Science", "Commerce", "Arts", 
+                       "B. Tech in Civil Engineering & M.Tech in Structural Engineering",
+                       "B. Tech in Electrical Engineering & M.Tech in Power System Engineering"]
         }
-        branch_list = [b.strip() for b in branch.split(',') if b.strip()]
-        valid_branches = [b for b in branch_list if b in allowed_branches[course_level]]
-        if not valid_branches:
-            raise HTTPException(status_code=400, detail=f"Branches must be valid for {course_level}: {allowed_branches[course_level]}")
-        branch = ','.join(sorted(set(valid_branches)))
+        invalid_branches = [b for b in college.branches if b not in allowed_branches.get(college.course_level, [])]
+        if invalid_branches:
+            raise HTTPException(status_code=400, detail=f"Invalid branches for {college.course_level}: {invalid_branches}")
 
-        if fees < 0:
-            raise HTTPException(status_code=400, detail="Fees cannot be negative.")
-
-        if cutoff_min < 0 or cutoff_max < 0:
-            raise HTTPException(status_code=400, detail="Cutoff scores cannot be negative.")
-
-        if cutoff_min > cutoff_max:
-            raise HTTPException(status_code=400, detail="Cutoff min cannot be greater than cutoff max.")
-
-        if rating and (rating < 1 or rating > 5):
-            raise HTTPException(status_code=400, detail="Rating must be between 1 and 5.")
+        # Validate numerical fields
+        if college.fees < 0 or college.cutoff_min < 0 or college.cutoff_max < 0:
+            raise HTTPException(status_code=400, detail="Fees, cutoff_min, and cutoff_max must be non-negative")
+        if college.cutoff_min > college.cutoff_max:
+            raise HTTPException(status_code=400, detail="cutoff_min must be less than or equal to cutoff_max")
 
         # Check if college exists
-        if db.query(College).filter(College.name == name).first():
-            raise HTTPException(status_code=400, detail="College with this name already exists.")
+        existing_college = db.query(College).filter(College.name == college.name).first()
+        if existing_college:
+            raise HTTPException(status_code=400, detail="College already exists")
 
-        # Create new college
-        new_college = College(
-            name=name,
-            state=state,
-            location=location,
-            course_level=course_level,
-            branch=branch,
-            fees=fees,
-            cutoff_min=cutoff_min,
-            cutoff_max=cutoff_max
+        # Create college
+        db_college = College(
+            name=college.name,
+            state=college.state,
+            location=college.location,
+            course_level=college.course_level,
+            fees=college.fees,
+            cutoff_min=college.cutoff_min,
+            cutoff_max=college.cutoff_max
         )
-        db.add(new_college)
+        db.add(db_college)
+
+        # Add branches
+        for branch in college.branches:
+            db_branch = CollegeBranch(college_name=college.name, branch=branch)
+            db.add(db_branch)
+
         db.commit()
-
-        # Add review if given
-        if review_text and rating:
-            new_review = Review(
-                college_name=name,
-                review_text=review_text,
-                rating=rating
-            )
-            db.add(new_review)
-            db.commit()
-
-        # Generate updated suggestions
-        all_colleges = db.query(College).all()
-        all_branches = set()
-        for c in all_colleges:
-            if c.branch:
-                all_branches.update(b.strip() for b in c.branch.split(','))
-        suggestions = {
-            "college_name": sorted([c.name for c in all_colleges], key=str.lower),
-            "location": sorted([c.location for c in all_colleges if c.location], key=str.lower),
-            "state": sorted([c.state for c in all_colleges if c.state], key=str.lower),
-            "branch": sorted(all_branches, key=str.lower)
+        return {
+            "name": db_college.name,
+            "state": db_college.state,
+            "location": db_college.location,
+            "course_level": db_college.course_level,
+            "fees": db_college.fees,
+            "cutoff_min": db_college.cutoff_min,
+            "cutoff_max": db_college.cutoff_max,
+            "branches": college.branches
         }
-
-        # SEO metadata
-        seo_metadata = {
-            "title": f"College Added - {name} in {state}",
-            "description": f"Successfully added {name} in {location}, {state} offering {course_level} in {branch}.",
-            "keywords": f"{name}, {state}, {location}, {course_level}, {branch}, college India",
-            "og_title": f"New College: {name} in {state}",
-            "og_description": f"Added {name} in {location}, {state} to our database.",
-            "og_url": str(request.url),
-            "twitter_card": "summary"
-        }
-
-        return templates.TemplateResponse(
-            "index.html",
-            {
-                "request": request,
-                "results": [],
-                "suggestions": suggestions,
-                "error": None,
-                "form_data": {},
-                "success_message": f"✅ College '{name}' added successfully!",
-                "seo": seo_metadata,
-                "use_table": False
-            }
-        )
-
     except Exception as e:
-        logger.error(f"❌ Error adding college: {e}")
-        seo_metadata = {
-            "title": "Error - Add College",
-            "description": "An error occurred while adding a college.",
-            "keywords": "college, India",
-            "og_title": "Error - Add College",
-            "og_description": "An error occurred while adding a college.",
-            "og_url": str(request.url),
-            "twitter_card": "summary"
-        }
-        return templates.TemplateResponse(
-            "index.html",
-            {
-                "request": request,
-                "results": [],
-                "suggestions": {"college_name": [], "location": [], "state": [], "branch": []},
-                "error": f"Error adding college: {str(e)}",
-                "form_data": {},
-                "seo": seo_metadata,
-                "use_table": False
-            }
-        )
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
     finally:
         db.close()
 
-@app.get("/api/suggestions")
-async def get_suggestions():
+@app.post("/api/reviews", response_model=ReviewResponse)
+def add_review(review: ReviewCreate):
     db = SessionLocal()
     try:
-        colleges = db.query(College).all()
-        all_branches = set()
-        for c in colleges:
-            if c.branch:
-                all_branches.update(b.strip() for b in c.branch.split(','))
-        suggestions = {
-            "college_name": sorted([c.name for c in colleges], key=str.lower),
-            "location": sorted([c.location for c in colleges if c.location], key=str.lower),
-            "state": sorted([c.state for c in colleges if c.state], key=str.lower),
-            "branch": sorted(all_branches, key=str.lower)
+        if not (1 <= review.rating <= 5):
+            raise HTTPException(status_code=400, detail="Rating must be between 1 and 5")
+
+        # Check if college exists
+        college = db.query(College).filter(College.name == review.college_name).first()
+        if not college:
+            raise HTTPException(status_code=404, detail="College not found")
+
+        db_review = Review(
+            college_name=review.college_name,
+            review_text=review.review_text,
+            rating=review.rating
+        )
+        db.add(db_review)
+        db.commit()
+        return {
+            "college_name": db_review.college_name,
+            "review_text": db_review.review_text,
+            "rating": db_review.rating
         }
-        return suggestions
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
     finally:
         db.close()
-
-@app.get("/health")
-async def health_check():
-    return {"status": "healthy"}
-
-@app.get("/api/colleges")
-def list_colleges():
-    db = SessionLocal()
-    colleges = db.query(College).all()
-    db.close()
-    return colleges
-
-@app.get("/predict_colleges/")
-async def predict_colleges(score: int, db: Session = Depends(get_db)):
-    try:
-        # Validate score
-        if score < 0:
-            raise HTTPException(status_code=400, detail="Score must be non-negative")
-
-        # Query colleges where score is within cutoff_min and cutoff_max
-        colleges = db.query(College).filter(
-            College.cutoff_min <= score,
-            College.cutoff_max >= score
-        ).all()
-
-        # Format results to match other endpoints
-        results = []
-        for college in colleges:
-            reviews = db.query(Review).filter(Review.college_name == college.name).all()
-            avg_rating = sum(r.rating for r in reviews) / len(reviews) if reviews else 0
-            results.append({
-                "name": college.name,
-                "state": college.state,
-                "location": college.location,
-                "course_level": college.course_level,
-                "branch": college.branch,  # Comma-separated string
-                "min_score": college.cutoff_min,
-                "max_score": college.cutoff_max,
-                "fees": college.fees,
-                "avg_rating": avg_rating,
-                "reviews": [{"review_text": r.review_text, "rating": r.rating} for r in reviews[:2]]
-            })
-
-        logger.info(f"GET /predict_colleges/?score={score}: Found {len(results)} colleges")
-        return {"results": sorted(results, key=lambda x: (-x["avg_rating"], x["fees"]))}
-
-    except Exception as e:
-        logger.error(f"❌ GET /predict_colleges/: Error: {e}")
-        raise HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")
-
-@app.get("/api/results")
-async def get_results(score: int, db: Session = Depends(get_db)):
-    try:
-        # Validate score
-        if score < 0:
-            raise HTTPException(status_code=400, detail="Score must be non-negative")
-
-        # Query colleges where score is within cutoff_min and cutoff_max
-        colleges = db.query(College).filter(
-            College.cutoff_min <= score,
-            College.cutoff_max >= score
-        ).all()
-
-        # Format results
-        results = []
-        for college in colleges:
-            reviews = db.query(Review).filter(Review.college_name == college.name).all()
-            avg_rating = sum(r.rating for r in reviews) / len(reviews) if reviews else 0
-            results.append({
-                "name": college.name,
-                "state": college.state,
-                "location": college.location,
-                "course_level": college.course_level,
-                "branch": college.branch,  # Comma-separated string
-                "min_score": college.cutoff_min,
-                "max_score": college.cutoff_max,
-                "fees": college.fees,
-                "avg_rating": avg_rating,
-                "reviews": [{"review_text": r.review_text, "rating": r.rating} for r in reviews[:2]]
-            })
-
-        # Generate suggestions
-        all_colleges = db.query(College).all()
-        all_branches = set()
-        for c in all_colleges:
-            if c.branch:
-                all_branches.update(b.strip() for b in c.branch.split(','))
-        suggestions = [
-            {
-                "name": c.name,
-                "state": c.state,
-                "location": c.location,
-                "course_level": c.course_level,
-                "branch": c.branch,
-                "min_score": c.cutoff_min,
-                "max_score": c.cutoff_max,
-                "fees": c.fees
-            } for c in all_colleges
-        ]
-
-        logger.info(f"GET /api/results?score={score}: Found {len(results)} colleges, {len(suggestions)} suggestions")
-        return {"results": sorted(results, key=lambda x: (-x["avg_rating"], x["fees"])), "suggestions": suggestions}
-
-    except Exception as e:
-        logger.error(f"❌ GET /api/results: Error: {e}")
-        raise HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")
