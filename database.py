@@ -4,7 +4,7 @@ from sqlalchemy.orm import sessionmaker
 import os
 
 # Use SQLite for local development
-SQLALCHEMY_DATABASE_URL = "sqlite:///college_finder.db"
+SQLALCHEMY_DATABASE_URL = "sqlite:///college.db"
 
 # For Render deployment with PostgreSQL, uncomment and set the environment variable:
 # SQLALCHEMY_DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://user:password@host:port/dbname")
