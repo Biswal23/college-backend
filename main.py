@@ -19,7 +19,9 @@ if os.path.exists("static"):
 # Initialize templates
 templates = Jinja2Templates(directory="templates")
 
-# Create database tables
+
+
+# Create database tables and initialize data
 try:
     Base.metadata.create_all(bind=engine)
     print("✅ Database tables created successfully")
@@ -37,7 +39,7 @@ except Exception as e:
 
 # Initialize database with sample data
 try:
-    initialize_database()
+    initialize_database(first_init=True)  # Use first_init=True only for first deployment
     db = SessionLocal()
     college_count = db.query(College).count()
     if college_count == 0:
@@ -47,7 +49,7 @@ try:
     db.close()
 except Exception as e:
     print(f"❌ Error initializing database: {e}")
-
+    
 # College name mappings to normalize user input
 COLLEGE_MAPPINGS = {
     "tech college": "Tech College",
