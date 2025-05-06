@@ -454,7 +454,7 @@ async def submit_review(
             rating=rating_value
         )
         db.add(new_review)
-       asco db.commit()
+        db.commit()  # Corrected line: proper syntax and indentation
 
         return {"message": "Review submitted successfully"}
 
@@ -463,7 +463,7 @@ async def submit_review(
         return {"error": f"Database error: {str(e)}"}, 500
     finally:
         db.close()
-
+        
 @app.post("/add_college", response_class=HTMLResponse)
 async def add_college(
     request: Request,
