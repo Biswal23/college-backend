@@ -26,8 +26,8 @@ try:
     # Verify schema
     db = SessionLocal()
     try:
-        db.execute("SELECT branch FROM colleges LIMIT 1")
-        print("✅ Schema verified: 'branch' column exists")
+        db.execute("SELECT cutoff_min, cutoff_max FROM colleges LIMIT 1")
+        print("✅ Schema verified: 'cutoff_min' and 'cutoff_max' columns exist")
     except Exception as e:
         print(f"❌ Schema verification failed: {e}")
     finally:
@@ -154,15 +154,15 @@ async def index_post(
         # Base query
         query = db.query(College).filter(College.course_level == course_level)
 
-        # Apply filters with case-insensitive prefix matching
+        # Apply filters with exact matching
         if state:
-            query = query.filter(College.state.ilike(f"{state}%"))
+            query = query.filter(College.state == state)
         if location:
-            query = query.filter(College.location.ilike(f"{location}%"))
+            query = query.filter(College.location == location)
         if college_name:
-            query = query.filter(College.name.ilike(f"{college_name}%"))
+            query = query.filter(College.name == college_name)
         if branch:
-            query = query.filter(College.branch.ilike(f"{branch}%"))
+            query = query.filter(College.branch == branch)
         if fees:
             try:
                 fees_value = float(fees)
@@ -174,13 +174,7 @@ async def index_post(
         if score:
             try:
                 score_value = float(score)
-                cutoff_min = 500
-                cutoff_max = 1500
-                # Check if score is within the acceptable range
-                if cutoff_min <= score_value <= cutoff_max:
-                    query = query.filter(College.cutoff.between(cutoff_min, cutoff_max))
-                else:
-                    query = query.filter(False)  # No results if score is out of range
+                query = query.filter(College.cutoff_min <= score_value, College.cutoff_max >= score_value)
             except ValueError:
                 print(f"POST /: Invalid score input: {score}")
 
@@ -203,13 +197,14 @@ async def index_post(
                 "location": college.location,
                 "course_level": college.course_level,
                 "branch": college.branch,
-                "min_score": college.cutoff,
+                "min_score": college.cutoff_min,
+                "max_score": college.cutoff_max,
                 "fees": college.fees,
                 "avg_rating": avg_rating,
                 "reviews": [{"review_text": r.review_text, "rating": r.rating} for r in reviews[:2]]
             })
 
-        # Generate autosuggestions based on user input prefixes
+        # Generate autosuggestions based on exact matches
         all_colleges = db.query(College).all()
         existing_college_names = [c.name for c in all_colleges]
         existing_locations = [c.location for c in all_colleges if c.location]
@@ -218,19 +213,19 @@ async def index_post(
 
         suggestions = {
             "college_name": sorted(
-                set(c.name for c in colleges if c.name and (not college_name or college_name.lower() in c.name.lower())),
+                set(c.name for c in colleges if c.name and (not college_name or college_name == c.name)),
                 key=lambda x: x.lower()
             ),
             "location": sorted(
-                set(c.location for c in colleges if c.location and (not location or location.lower() in c.location.lower())),
+                set(c.location for c in colleges if c.location and (not location or location == c.location)),
                 key=lambda x: x.lower()
             ),
             "state": sorted(
-                set(c.state for c in colleges if c.state and (not state or state.lower() in c.state.lower())),
+                set(c.state for c in colleges if c.state and (not state or state == c.state)),
                 key=lambda x: x.lower()
             ),
             "branch": sorted(
-                set(c.branch for c in colleges if c.branch and (not branch or branch.lower() in c.branch.lower())),
+                set(c.branch for c in colleges if c.branch and (not branch or branch == c.branch)),
                 key=lambda x: x.lower()
             )
         }
@@ -241,16 +236,16 @@ async def index_post(
         # Check for invalid inputs and provide specific error messages
         error_message = None
         if not results:
-            if state and not any(st.lower().startswith(state.lower()) for st in existing_states):
+            if state and state not in existing_states:
                 error_message = f"Result fetching error: No matching colleges found for state '{state}'."
-            elif location and not any(loc.lower().startswith(location.lower()) for loc in existing_locations):
+            elif location and location not in existing_locations:
                 error_message = f"Result fetching error: No matching colleges found for location '{location}'."
-            elif college_name and not any(name.lower().startswith(college_name.lower()) for name in existing_college_names):
+            elif college_name and college_name not in existing_college_names:
                 error_message = f"Result fetching error: No matching colleges found for college name '{college_name}'."
-            elif branch and not any(br.lower().startswith(branch.lower()) for br in existing_branches):
+            elif branch and branch not in existing_branches:
                 error_message = f"Result fetching error: No matching colleges found for branch '{branch}'."
-            elif score and (not score.isdigit() or not (500 <= float(score) <= 1500)):
-                error_message = f"Result fetching error: Score '{score}' is out of range (500–1500)."
+            elif score and not score.isdigit():
+                error_message = f"Result fetching error: Score '{score}' is invalid."
             else:
                 error_message = "No colleges found matching your criteria."
 
@@ -351,32 +346,27 @@ async def search(
 
         query = db.query(College).filter(College.course_level == course_level)
 
-        # Filters with prefix matching
+        # Filters with exact matching
         if state:
-            query = query.filter(College.state.ilike(f"{state}%"))
+            query = query.filter(College.state == state)
         if location:
-            query = query.filter(College.location.ilike(f"{location}%"))
+            query = query.filter(College.location == location)
         if college_name:
-            query = query.filter(College.name.ilike(f"{college_name}%"))
+            query = query.filter(College.name == college_name)
         if branch:
-            query = query.filter(College.branch.ilike(f"{branch}%"))
+            query = query.filter(College.branch == branch)
         if fees:
             try:
                 max_fees = float(fees)
                 query = query.filter(College.fees <= max_fees)
             except ValueError:
-                pass
+                print(f"POST /api/search: Invalid fees input: {fees}")
         if score:
             try:
                 score_value = float(score)
-                cutoff_min = 500
-                cutoff_max = 1500
-                if cutoff_min <= score_value <= cutoff_max:
-                    query = query.filter(College.cutoff.between(cutoff_min, cutoff_max))
-                else:
-                    query = query.filter(False)  # No results if score is out of range
+                query = query.filter(College.cutoff_min <= score_value, College.cutoff_max >= score_value)
             except ValueError:
-                pass
+                print(f"POST /api/search: Invalid score input: {score}")
 
         colleges = query.all()
 
@@ -399,7 +389,8 @@ async def search(
                 "location": college.location,
                 "course_level": college.course_level,
                 "branch": college.branch,
-                "min_score": college.cutoff,
+                "min_score": college.cutoff_min,
+                "max_score": college.cutoff_max,
                 "fees": college.fees,
                 "reviews": [{"review_text": r.review_text, "rating": r.rating} for r in reviews]
             })
@@ -408,27 +399,27 @@ async def search(
         all_colleges = db.query(College).all()
         suggestions = {
             "college_name": sorted(
-                [c.name for c in all_colleges if c.name.lower().startswith(college_name.lower())],
+                [c.name for c in all_colleges if not college_name or college_name == c.name],
                 key=str.lower
-            ) if college_name else sorted([c.name for c in all_colleges], key=str.lower),
+            ),
             "location": sorted(
-                [c.location for c in all_colleges if c.location and c.location.lower().startswith(location.lower())],
+                [c.location for c in all_colleges if c.location and (not location or location == c.location)],
                 key=str.lower
-            ) if location else sorted([c.location for c in all_colleges if c.location], key=str.lower),
+            ),
             "state": sorted(
-                [c.state for c in all_colleges if c.state and c.state.lower().startswith(state.lower())],
+                [c.state for c in all_colleges if c.state and (not state or state == c.state)],
                 key=str.lower
-            ) if state else sorted([c.state for c in all_colleges if c.state], key=str.lower),
+            ),
             "branch": sorted(
-                [c.branch for c in all_colleges if c.branch and c.branch.lower().startswith(branch.lower())],
+                [c.branch for c in all_colleges if c.branch and (not branch or branch == c.branch)],
                 key=str.lower
-            ) if branch else sorted([c.branch for c in all_colleges if c.branch], key=str.lower)
+            )
         }
 
         return {"results": results, "suggestions": suggestions}
 
     except Exception as e:
-        print(f"❌ API search error: {e}")
+        print(f"❌ POST /api/search: Error: {e}")
         return {"error": "An error occurred while searching"}, 500
     finally:
         db.close()
@@ -463,7 +454,7 @@ async def submit_review(
             rating=rating_value
         )
         db.add(new_review)
-        db.commit()
+       asco db.commit()
 
         return {"message": "Review submitted successfully"}
 
@@ -482,13 +473,14 @@ async def add_college(
     course_level: str = Form(...),
     branch: str = Form(...),
     fees: float = Form(...),
-    cutoff: float = Form(...),
+    cutoff_min: float = Form(...),
+    cutoff_max: float = Form(...),
     review_text: Optional[str] = Form(default=""),
     rating: Optional[int] = Form(default=None)
 ):
     db = SessionLocal()
     try:
-        if not all([name, state, location, course_level, branch, fees, cutoff]):
+        if not all([name, state, location, course_level, branch, fees, cutoff_min, cutoff_max]):
             raise HTTPException(status_code=400, detail="All fields except review and rating are required.")
 
         allowed_course_levels = ["BTech", "Diploma", "Degree"]
@@ -507,8 +499,11 @@ async def add_college(
         if fees < 0:
             raise HTTPException(status_code=400, detail="Fees cannot be negative.")
 
-        if cutoff < 0:
-            raise HTTPException(status_code=400, detail="Cutoff score cannot be negative.")
+        if cutoff_min < 0 or cutoff_max < 0:
+            raise HTTPException(status_code=400, detail="Cutoff scores cannot be negative.")
+
+        if cutoff_min > cutoff_max:
+            raise HTTPException(status_code=400, detail="Cutoff min cannot be greater than cutoff max.")
 
         if rating and (rating < 1 or rating > 5):
             raise HTTPException(status_code=400, detail="Rating must be between 1 and 5.")
@@ -525,7 +520,8 @@ async def add_college(
             course_level=course_level,
             branch=branch,
             fees=fees,
-            cutoff=cutoff
+            cutoff_min=cutoff_min,
+            cutoff_max=cutoff_max
         )
         db.add(new_college)
         db.commit()
@@ -632,14 +628,11 @@ async def predict_colleges(score: int, db: Session = Depends(get_db)):
         # Validate score
         if score < 0:
             raise HTTPException(status_code=400, detail="Score must be non-negative")
-        cutoff_min = 500
-        cutoff_max = 1500
-        if not (cutoff_min <= score <= cutoff_max):
-            raise HTTPException(status_code=400, detail=f"Score must be between {cutoff_min} and {cutoff_max}")
 
-        # Query colleges where cutoff is within the acceptable range
+        # Query colleges where score is within cutoff_min and cutoff_max
         colleges = db.query(College).filter(
-            College.cutoff.between(cutoff_min, cutoff_max)
+            College.cutoff_min <= score,
+            College.cutoff_max >= score
         ).all()
 
         # Format results to match other endpoints
@@ -653,7 +646,8 @@ async def predict_colleges(score: int, db: Session = Depends(get_db)):
                 "location": college.location,
                 "course_level": college.course_level,
                 "branch": college.branch,
-                "min_score": college.cutoff,
+                "min_score": college.cutoff_min,
+                "max_score": college.cutoff_max,
                 "fees": college.fees,
                 "avg_rating": avg_rating,
                 "reviews": [{"review_text": r.review_text, "rating": r.rating} for r in reviews[:2]]
@@ -664,4 +658,57 @@ async def predict_colleges(score: int, db: Session = Depends(get_db)):
 
     except Exception as e:
         print(f"❌ GET /predict_colleges/: Error: {e}")
+        raise HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")
+
+@app.get("/api/results")
+async def get_results(score: int, db: Session = Depends(get_db)):
+    try:
+        # Validate score
+        if score < 0:
+            raise HTTPException(status_code=400, detail="Score must be non-negative")
+
+        # Query colleges where score is within cutoff_min and cutoff_max
+        colleges = db.query(College).filter(
+            College.cutoff_min <= score,
+            College.cutoff_max >= score
+        ).all()
+
+        # Format results
+        results = []
+        for college in colleges:
+            reviews = db.query(Review).filter(Review.college_name == college.name).all()
+            avg_rating = sum(r.rating for r in reviews) / len(reviews) if reviews else 0
+            results.append({
+                "name": college.name,
+                "state": college.state,
+                "location": college.location,
+                "course_level": college.course_level,
+                "branch": college.branch,
+                "min_score": college.cutoff_min,
+                "max_score": college.cutoff_max,
+                "fees": college.fees,
+                "avg_rating": avg_rating,
+                "reviews": [{"review_text": r.review_text, "rating": r.rating} for r in reviews[:2]]
+            })
+
+        # Generate suggestions (all colleges for simplicity, could filter by proximity to score)
+        all_colleges = db.query(College).all()
+        suggestions = [
+            {
+                "name": c.name,
+                "state": c.state,
+                "location": c.location,
+                "course_level": c.course_level,
+                "branch": c.branch,
+                "min_score": c.cutoff_min,
+                "max_score": c.cutoff_max,
+                "fees": c.fees
+            } for c in all_colleges
+        ]
+
+        print(f"GET /api/results?score={score}: Found {len(results)} colleges, {len(suggestions)} suggestions")
+        return {"results": sorted(results, key=lambda x: (-x["avg_rating"], x["fees"])), "suggestions": suggestions}
+
+    except Exception as e:
+        print(f"❌ GET /api/results: Error: {e}")
         raise HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")
