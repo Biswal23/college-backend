@@ -6,8 +6,12 @@ from sqlalchemy.orm import sessionmaker
 # Use the DATABASE_URL environment variable provided by Render
 DATABASE_URL = os.getenv("DATABASE_URL")
 
+# Check if DATABASE_URL is set
+if DATABASE_URL is None:
+    raise ValueError("DATABASE_URL environment variable is not set. Please set it in your Render environment settings.")
+
 # Replace 'postgres://' with 'postgresql://' to make it compatible with SQLAlchemy
-if DATABASE_URL and DATABASE_URL.startswith("postgres://"):
+if DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
 # Create SQLAlchemy engine
