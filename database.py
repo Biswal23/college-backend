@@ -1,20 +1,17 @@
-import os
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
+import os
 
-# Use the DATABASE_URL environment variable provided by Render
-DATABASE_URL = os.getenv("DATABASE_URL")
+# SQLite database for local development
+SQLALCHEMY_DATABASE_URL = "sqlite:///college.db"
 
-# Replace 'postgres://' with 'postgresql://' to make it compatible with SQLAlchemy
-if DATABASE_URL and DATABASE_URL.startswith("postgres://"):
-    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+# For Render deployment with PostgreSQL, use environment variable:
+# SQLALCHEMY_DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://user:password@host:port/dbname")
 
-# Create SQLAlchemy engine
-engine = create_engine(DATABASE_URL, echo=True)
-
-# Create a configured "Session" class
+engine = create_engine(
+    SQLALCHEMY_DATABASE_URL,
+    connect_args={"check_same_thread": False} if SQLALCHEMY_DATABASE_URL.startswith("sqlite") else {}
+)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
-# Create a base class for our models
 Base = declarative_base()
