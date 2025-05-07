@@ -1,4 +1,4 @@
-from database import SessionLocal, engine
+from database import SessionLocal, engine, Base
 from models import College, Review, Base
 from sqlalchemy.exc import IntegrityError, OperationalError
 
