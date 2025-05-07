@@ -1,211 +1,141 @@
-from sqlalchemy.exc import IntegrityError, OperationalError
+from sqlalchemy.orm import Session
 from database import SessionLocal, engine, Base
 from models import College, Review
 
-def initialize_database(first_init=False):
-    """
-    Initialize the database with sample college and review data.
-    Set first_init=True to force table recreation (use cautiously in production).
-    """
-    # Recreate tables only if explicitly requested (e.g., first deployment)
+def initialize_database(first_init: bool = False):
+    # Create tables if they don't exist
+    Base.metadata.create_all(bind=engine)
+
+    # Initialize database with sample data if first_init is True
     if first_init:
+        db = SessionLocal()
         try:
-            Base.metadata.drop_all(bind=engine)
-            Base.metadata.create_all(bind=engine)
-            print("✅ Database tables recreated successfully")
-        except Exception as e:
-            print(f"❌ Error recreating database tables: {e}")
-            return
+            # Check if database already has data
+            if db.query(College).count() > 0:
+                return
 
-    db = SessionLocal()
-    try:
-        # Check if data already exists to avoid duplicates
-        college_count = db.query(College).count()
-        if college_count > 0:
-            print(f"✅ Database already initialized with {college_count} colleges.")
-            return
+            # Sample colleges
+            colleges = [
+                College(
+                    name="Tech College",
+                    state="Maharashtra",
+                    location="Pune",
+                    course_level="BTech",
+                    branch="Computer Science",
+                    fees=150000.0,
+                    cutoff_min=600.0,
+                    cutoff_max=800.0
+                ),
+                College(
+                    name="Science College",
+                    state="Karnataka",
+                    location="Bangalore",
+                    course_level="Degree",
+                    branch="Science",
+                    fees=80000.0,
+                    cutoff_min=500.0,
+                    cutoff_max=700.0
+                ),
+                College(
+                    name="Engineering College",
+                    state="Tamil Nadu",
+                    location="Chennai",
+                    course_level="BTech",
+                    branch="Mechanical Engineering",
+                    fees=120000.0,
+                    cutoff_min=550.0,
+                    cutoff_max=750.0
+                ),
+                College(
+                    name="Commerce Institute",
+                    state="Gujarat",
+                    location="Ahmedabad",
+                    course_level="Degree",
+                    branch="Commerce",
+                    fees=60000.0,
+                    cutoff_min=450.0,
+                    cutoff_max=650.0
+                ),
+                College(
+                    name="Polytechnic Institute",
+                    state="Uttar Pradesh",
+                    location="Lucknow",
+                    course_level="Diploma",
+                    branch="Civil Engineering",
+                    fees=50000.0,
+                    cutoff_min=400.0,
+                    cutoff_max=600.0
+                ),
+                College(
+                    name="Tech College",
+                    state="West Bengal",
+                    location="Kolkata",
+                    course_level="BTech",
+                    branch="Electronics and Telecommunication",
+                    fees=140000.0,
+                    cutoff_min=580.0,
+                    cutoff_max=780.0
+                ),
+                College(
+                    name="Science College",
+                    state="Kerala",
+                    location="Kochi",
+                    course_level="Degree",
+                    branch="Arts",
+                    fees=70000.0,
+                    cutoff_min=480.0,
+                    cutoff_max=680.0
+                ),
+                College(
+                    name="Engineering College",
+                    state="Andhra Pradesh",
+                    location="Hyderabad",
+                    course_level="BTech",
+                    branch="Civil Engineering",
+                    fees=130000.0,
+                    cutoff_min=570.0,
+                    cutoff_max=770.0
+                ),
+                College(
+                    name="Commerce Institute",
+                    state="Rajasthan",
+                    location="Jaipur",
+                    course_level="Degree",
+                    branch="Commerce",
+                    fees=65000.0,
+                    cutoff_min=460.0,
+                    cutoff_max=660.0
+                ),
+                College(
+                    name="Polytechnic Institute",
+                    state="Delhi",
+                    location="New Delhi",
+                    course_level="Diploma",
+                    branch="Mechanical Engineering",
+                    fees=55000.0,
+                    cutoff_min=420.0,
+                    cutoff_max=620.0
+                ),
+            ]
 
-        # Sample colleges with cutoff_min and cutoff_max
-        colleges = [
-            College(
-                name="Tech College Mumbai",
-                state="Maharashtra",
-                location="Mumbai",
-                course_level="BTech",
-                branch="Computer Science",
-                fees=150000,
-                cutoff_min=1100,
-                cutoff_max=1300
-            ),
-            College(
-                name="Engineering College Pune",
-                state="Maharashtra",
-                location="Pune",
-                course_level="BTech",
-                branch="Mechanical Engineering",
-                fees=120000,
-                cutoff_min=1000,
-                cutoff_max=1200
-            ),
-            College(
-                name="Science College Bangalore",
-                state="Karnataka",
-                location="Bangalore",
-                course_level="Degree",
-                branch="Science",
-                fees=80000,
-                cutoff_min=800,
-                cutoff_max=1000
-            ),
-            College(
-                name="Commerce Institute Chennai",
-                state="Tamil Nadu",
-                location="Chennai",
-                course_level="Degree",
-                branch="Commerce",
-                fees=90000,
-                cutoff_min=750,
-                cutoff_max=950
-            ),
-            College(
-                name="Polytechnic Institute",
-                state="Gujarat",
-                location="Ahmedabad",
-                course_level="Diploma",
-                branch="Civil Engineering",
-                fees=90000,
-                cutoff_min=500,
-                cutoff_max=1500
-            ),
-            College(
-                name="Tech Institute Hyderabad",
-                state="Telangana",
-                location="Hyderabad",
-                course_level="BTech",
-                branch="Electronics and Telecommunication",
-                fees=140000,
-                cutoff_min=1050,
-                cutoff_max=1250
-            ),
-            College(
-                name="Arts College Kolkata",
-                state="West Bengal",
-                location="Kolkata",
-                course_level="Degree",
-                branch="Arts",
-                fees=70000,
-                cutoff_min=700,
-                cutoff_max=900
-            ),
-            College(
-                name="Engineering Academy Jaipur",
-                state="Rajasthan",
-                location="Jaipur",
-                course_level="BTech",
-                branch="Computer Science",
-                fees=130000,
-                cutoff_min=1150,
-                cutoff_max=1350
-            ),
-            College(
-                name="Diploma College Ahmedabad",
-                state="Gujarat",
-                location="Ahmedabad",
-                course_level="Diploma",
-                branch="Mechanical Engineering",
-                fees=65000,
-                cutoff_min=650,
-                cutoff_max=850
-            ),
-            College(
-                name="Science Academy Bhopal",
-                state="Madhya Pradesh",
-                location="Bhopal",
-                course_level="Degree",
-                branch="Science",
-                fees=85000,
-                cutoff_min=850,
-                cutoff_max=1050
-            ),
-        ]
+            # Sample reviews
+            reviews = [
+                Review(
+                    college_name="Tech College",
+                    review_text="Great faculty and infrastructure!",
+                    rating=4.5
+                ),
+                Review(
+                    college_name="Science College",
+                    review_text="Good environment for learning.",
+                    rating=4.0
+                ),
+            ]
 
-        # Add colleges to database
-        for college in colleges:
-            db.add(college)
-        db.flush()  # Ensure colleges are persisted before adding reviews
+            # Add data to database
+            db.add_all(colleges)
+            db.add_all(reviews)
+            db.commit()
 
-        # Sample reviews
-        reviews = [
-            Review(
-                college_name="Tech College Mumbai",
-                review_text="Great faculty and infrastructure!",
-                rating=4.5
-            ),
-            Review(
-                college_name="Tech College Mumbai",
-                review_text="Good placement opportunities.",
-                rating=4.0
-            ),
-            Review(
-                college_name="Engineering College Pune",
-                review_text="Excellent mechanical engineering program.",
-                rating=4.2
-            ),
-            Review(
-                college_name="Science College Bangalore",
-                review_text="Supportive professors, but limited facilities.",
-                rating=3.8
-            ),
-            Review(
-                college_name="Commerce Institute Chennai",
-                review_text="Affordable and quality education.",
-                rating=4.0
-            ),
-            Review(
-                college_name="Polytechnic Institute",
-                review_text="Practical training is top-notch.",
-                rating=4.3
-            ),
-            Review(
-                college_name="Tech Institute Hyderabad",
-                review_text="Modern campus with great labs.",
-                rating=4.5
-            ),
-            Review(
-                college_name="Arts College Kolkata",
-                review_text="Creative environment, but needs better resources.",
-                rating=3.7
-            ),
-            Review(
-                college_name="Engineering Academy Jaipur",
-                review_text="Strong industry connections.",
-                rating=4.4
-            ),
-            Review(
-                college_name="Diploma College Ahmedabad",
-                review_text="Good for hands-on learning.",
-                rating=4.1
-            ),
-        ]
-
-        # Add reviews to database
-        for review in reviews:
-            db.add(review)
-
-        # Commit changes
-        db.commit()
-        college_count = db.query(College).count()
-        review_count = db.query(Review).count()
-        print(f"✅ Database initialized with {college_count} colleges and {review_count} reviews.")
-
-    except IntegrityError as e:
-        db.rollback()
-        print(f"❌ Error initializing database: IntegrityError: {e}")
-    except OperationalError as e:
-        db.rollback()
-        print(f"❌ Error initializing database: OperationalError: {e}")
-    except Exception as e:
-        db.rollback()
-        print(f"❌ Unexpected error initializing database: {e}")
-    finally:
-        db.close()
+        finally:
+            db.close()
