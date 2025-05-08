@@ -15,8 +15,8 @@ class College(Base):
     course_level = Column(String)
     branch = Column(String)
     fees = Column(Float)
-    cutoff_min = Column(Integer)  # Ensure this exists
-    cutoff_max = Column(Integer)  # Ensure this exists
+    cutoff_min = Column(Float)  # Ensure this exists
+    cutoff_max = Column(Float)  # Ensure this exists
     
     
 class Review(Base):
