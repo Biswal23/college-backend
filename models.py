@@ -14,9 +14,10 @@ class College(Base):
     location = Column(String)
     course_level = Column(String)
     branch = Column(String)
+    fees = Column(Float)
     cutoff_min = Column(Integer)  # Ensure this exists
     cutoff_max = Column(Integer)  # Ensure this exists
-    fees = Column(Float)
+    
     
 class Review(Base):
     __tablename__ = "reviews"
