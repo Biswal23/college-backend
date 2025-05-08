@@ -60,40 +60,40 @@ def get_db():
     finally:
         db.close()
 
-@app.get("/", response_class=HTMLResponse)
-async def index(request: Request):
-    db = SessionLocal()
-    try:
-        colleges = db.query(College).all()
-        print(f"GET /: Found {len(colleges)} colleges in database")
-        if not colleges:
-            print("GET /: Warning: No colleges found in database!")
-        else:
-            print(f"GET /: Colleges: {[c.name for c in colleges]}")
-
-        # Generate suggestions
-        all_suggestions = {
-            "college_name": sorted([c.name for c in colleges], key=str.lower),
-            "location": sorted([c.location for c in colleges if c.location], key=str.lower),
-            "state": sorted([c.state for c in colleges if c.state], key=str.lower),
-            "branch": sorted([c.branch for c in colleges if c.branch], key=str.lower)
-        }
-        print(f"GET /: Initial suggestions: {all_suggestions}")
-        if not any(all_suggestions.values()):
-            print("GET /: Error: Suggestions are empty! Check database data.")
-
-        # SEO metadata
-        states = sorted(set(c.state for c in colleges if c.state))
-        locations = sorted(set(c.location for c in colleges if c.location))
-        seo_metadata = {
+@app.get("/")
+async def root(request: Request, db: Session = Depends(get_db)):
+    # Fetch all colleges
+    colleges = db.query(College).all()
+    print(f"DEBUG: Found {len(colleges)} colleges: {[c.name for c in colleges]}")  # Debug log
+    
+    # Generate suggestions
+    suggestions = {
+        "college_name": [c.name for c in db.query(College.name).distinct().all()],
+        "state": [s.state for s in db.query(College.state).distinct().all()],
+        "location": [l.location for l in db.query(College.location).distinct().all()],
+        "branch": [b.branch for b in db.query(College.branch).distinct().all()]
+    }
+    
+    # Prepare context for template
+    context = {
+        "request": request,
+        "results": colleges,
+        "suggestions": suggestions,
+        "error": "No colleges found in database!" if not colleges else None,
+        "form_data": {},
+        "seo": {
             "title": "Find Top Colleges in India | BTech, Diploma, Degree",
-            "description": f"Discover top colleges in {', '.join(states[:3]) + ' and more' if states else 'India'} for BTech, Diploma, and Degree courses. Filter by state, district, fees, and cutoff scores.",
-            "keywords": f"colleges in India, {', '.join(states)}, {', '.join(locations[:5])}, BTech colleges, Diploma colleges, Degree colleges",
+            "description": "Discover top colleges in Delhi, Gujarat, Karnataka and more for BTech, Diploma, and Degree courses. Filter by state, district, fees, and cutoff scores.",
+            "keywords": "colleges in India, Delhi, Gujarat, Karnataka, Madhya Pradesh, Maharashtra, Rajasthan, Tamil Nadu, Telangana, West Bengal, Ahmedabad, Bangalore, Bhopal, Chennai, Hyderabad, BTech colleges, Diploma colleges, Degree colleges",
             "og_title": "Best Colleges in India - Find Your Perfect Institute",
-            "og_description": f"Explore colleges in {', '.join(states[:2]) + ' and other states' if states else 'India'} with detailed reviews and filters.",
-            "og_url": str(request.url),
+            "og_description": "Explore colleges in Delhi, Gujarat and other states with detailed reviews and filters.",
+            "og_url": "https://collegefilter.onrender.com/",
             "twitter_card": "summary_large_image"
-        }
+        },
+        "use_table": False
+    }
+    
+    return templates.TemplateResponse("index.html", context)
 
     except Exception as e:
         print(f"❌ GET /: Error loading suggestions: {e}")
