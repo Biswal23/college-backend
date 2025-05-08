@@ -1,11 +1,6 @@
 from sqlalchemy import Column, Integer, String, Float
 from database import Base
 
-
-from sqlalchemy.ext.declarative import declarative_base
-
-Base = declarative_base()
-
 class College(Base):
     __tablename__ = "colleges"
     id = Column(Integer, primary_key=True)
@@ -15,13 +10,12 @@ class College(Base):
     course_level = Column(String)
     branch = Column(String)
     fees = Column(Float)
-    cutoff_min = Column(Float)  # Ensure this exists
-    cutoff_max = Column(Float)  # Ensure this exists
-    
-    
+    cutoff_min = Column(Float)
+    cutoff_max = Column(Float)
+
 class Review(Base):
     __tablename__ = "reviews"
     id = Column(Integer, primary_key=True)
-    college_name = Column(String, nullable=False)  # Links to College.name
+    college_name = Column(String, nullable=False)
     review_text = Column(String)
     rating = Column(Float)
