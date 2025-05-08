@@ -1,5 +1,5 @@
 from fastapi import FastAPI, Request, Form, HTTPException, Depends
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, Response
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from database import SessionLocal, engine, Base
@@ -11,9 +11,6 @@ from initial_data import initialize_database
 
 # Initialize FastAPI app
 app = FastAPI()
-@app.on_event("startup")
-async def startup_event():
-    initialize_database()
 
 # Mount static files if directory exists
 if os.path.exists("static"):
@@ -22,27 +19,34 @@ if os.path.exists("static"):
 # Initialize templates
 templates = Jinja2Templates(directory="templates")
 
-# Create database tables
-try:
-    Base.metadata.create_all(bind=engine)
-    print("✅ Database tables created successfully")
-    # Verify schema
+# Database session dependency
+def get_db():
     db = SessionLocal()
     try:
-        db.execute("SELECT cutoff_min, cutoff_max FROM colleges LIMIT 1")
-        print("✅ Schema verified: 'cutoff_min' and 'cutoff_max' columns exist")
-    except Exception as e:
-        print(f"❌ Schema verification failed: {e}")
+        yield db
     finally:
         db.close()
-except Exception as e:
-    print(f"❌ Error creating database tables: {e}")
 
-# Initialize database with sample data
-try:
-    initialize_database()
-except Exception as e:
-    print(f"❌ Error initializing database: {e}")
+# Create database tables and initialize data at startup
+@app.on_event("startup")
+async def startup_event():
+    try:
+        Base.metadata.create_all(bind=engine)
+        print("✅ Database tables created successfully")
+        # Verify schema
+        db = SessionLocal()
+        try:
+            db.execute("SELECT cutoff_min, cutoff_max FROM colleges LIMIT 1")
+            print("✅ Schema verified: 'cutoff_min' and 'cutoff_max' columns exist")
+        except Exception as e:
+            print(f"❌ Schema verification failed: {e}")
+        finally:
+            db.close()
+        
+        initialize_database()
+        print("✅ Database initialization completed")
+    except Exception as e:
+        print(f"❌ Error during startup: {e}")
 
 # College name mappings to normalize user input
 COLLEGE_MAPPINGS = {
@@ -53,47 +57,73 @@ COLLEGE_MAPPINGS = {
     "polytechnic institute": "Polytechnic Institute",
 }
 
-def get_db():
-    db = SessionLocal()
+@app.get("/", response_class=HTMLResponse)
+async def index(request: Request, db: Session = Depends(get_db)):
     try:
-        yield db
-    finally:
-        db.close()
+        # Fetch all colleges
+        colleges = db.query(College).all()
+        print(f"GET /: Found {len(colleges)} colleges in database")
+        if not colleges:
+            print("GET /: Warning: No colleges found in database!")
+        else:
+            print(f"GET /: Colleges: {[c.name for c in colleges]}")
 
-@app.get("/")
-async def root(request: Request, db: Session = Depends(get_db)):
-    colleges = db.query(College).all()
-    print(f"DEBUG: Found {len(colleges)} colleges: {[c.name for c in colleges]}")
-    
-    suggestions = {
-        "college_name": [c.name for c in db.query(College.name).distinct().all()],
-        "state": [s.state for s in db.query(College.state).distinct().all()],
-        "location": [l.location for l in db.query(College.location).distinct().all()],
-        "branch": [b.branch for b in db.query(College.branch).distinct().all()]
-    }
-    
-    context = {
-        "request": request,
-        "results": colleges,
-        "suggestions": suggestions,
-        "error": "No colleges found in database!" if not colleges else None,
-        "form_data": {},
-        "seo": {
+        # Format results with reviews and average ratings (consistent with POST /)
+        results = []
+        for college in colleges:
+            reviews = db.query(Review).filter(Review.college_name == college.name).all()
+            avg_rating = sum(r.rating for r in reviews) / len(reviews) if reviews else 0
+            results.append({
+                "name": college.name,
+                "state": college.state,
+                "location": college.location,
+                "course_level": college.course_level,
+                "branch": college.branch,
+                "min_score": college.cutoff_min,
+                "max_score": college.cutoff_max,
+                "fees": college.fees,
+                "avg_rating": avg_rating,
+                "reviews": [{"review_text": r.review_text, "rating": r.rating} for r in reviews[:2]]
+            })
+
+        # Generate suggestions
+        all_suggestions = {
+            "college_name": sorted([c.name for c in colleges], key=str.lower),
+            "location": sorted([c.location for c in colleges if c.location], key=str.lower),
+            "state": sorted(list(set(c.state for c in colleges if c.state)), key=str.lower),  # Remove duplicates
+            "branch": sorted(list(set(c.branch for c in colleges if c.branch)), key=str.lower)  # Remove duplicates
+        }
+        print(f"GET /: Initial suggestions: {all_suggestions}")
+        if not any(all_suggestions.values()):
+            print("GET /: Error: Suggestions are empty! Check database data.")
+
+        # SEO metadata
+        states = sorted(set(c.state for c in colleges if c.state))
+        locations = sorted(set(c.location for c in colleges if c.location))
+        seo_metadata = {
             "title": "Find Top Colleges in India | BTech, Diploma, Degree",
-            "description": "Discover top colleges in Delhi, Gujarat, Karnataka and more for BTech, Diploma, and Degree courses. Filter by state, district, fees, and cutoff scores.",
-            "keywords": ", ".join([s for s in suggestions.state + suggestions.location + ["BTech colleges", "Diploma colleges", "Degree colleges"] if s]),
+            "description": f"Discover top colleges in {', '.join(states[:3]) + ' and more' if states else 'India'} for BTech, Diploma, and Degree courses. Filter by state, district, fees, and cutoff scores.",
+            "keywords": f"colleges in India, {', '.join(states)}, {', '.join(locations[:5])}, BTech colleges, Diploma colleges, Degree colleges",
             "og_title": "Best Colleges in India - Find Your Perfect Institute",
-            "og_description": "Explore colleges in Delhi, Gujarat and other states with detailed reviews and filters.",
-            "og_url": "https://collegefilter.onrender.com/",
+            "og_description": f"Explore colleges in {', '.join(states[:2]) + ' and other states' if states else 'India'} with detailed reviews and filters.",
+            "og_url": str(request.url),
             "twitter_card": "summary_large_image"
-        },
-        "use_table": False
-    }
-    
-    return templates.TemplateResponse("index.html", context)
+        }
+
+        context = {
+            "request": request,
+            "results": sorted(results, key=lambda x: (-x["avg_rating"], x["fees"])),  # Fixed: Use formatted results
+            "suggestions": all_suggestions,
+            "error": "No colleges found in database!" if not colleges else None,
+            "form_data": {},
+            "seo": seo_metadata,
+            "use_table": len(results) > 5
+        }
+        print(f"GET /: Context passed to template: {context}")
+        return templates.TemplateResponse("index.html", context)
 
     except Exception as e:
-        print(f"❌ GET /: Error loading suggestions: {e}")
+        print(f"❌ GET /: Error loading data: {e}")
         all_suggestions = {"college_name": [], "location": [], "state": [], "branch": []}
         seo_metadata = {
             "title": "Find Colleges in India",
@@ -104,84 +134,22 @@ async def root(request: Request, db: Session = Depends(get_db)):
             "og_url": str(request.url),
             "twitter_card": "summary"
         }
-    finally:
-        db.close()
+        context = {
+            "request": request,
+            "results": [],
+            "suggestions": all_suggestions,
+            "error": f"Error loading colleges: {str(e)}",
+            "form_data": {},
+            "seo": seo_metadata,
+            "use_table": False
+        }
+        return templates.TemplateResponse("index.html", context)
 
-    context = {
-        "request": request,
-        "results": [],
-        "suggestions": all_suggestions,
-        "error": None,
-        "form_data": {},
-        "seo": seo_metadata,
-        "use_table": False
-    }
-    print(f"GET /: Context passed to template: {context}")
-    return templates.TemplateResponse("index.html", context)
-@app.post("/")
-async def search_colleges(
-    request: Request,
-    course_level: str = None,
-    state: str = None,
-    location: str = None,
-    college_name: str = None,
-    branch: str = None,
-    fees: float = None,
-    score: float = None,
-    db: Session = Depends(get_db)
-):
-    query = db.query(College)
-    if course_level:
-        query = query.filter(College.course_level == course_level)
-    if state:
-        query = query.filter(College.state == state)
-    if location:
-        query = query.filter(College.location.ilike(f"%{location}%"))
-    if college_name:
-        query = query.filter(College.name.ilike(f"%{college_name}%"))
-    if branch:
-        query = query.filter(College.branch == branch)
-    if fees:
-        query = query.filter(College.fees <= fees)
-    if score:
-        query = query.filter(College.cutoff_min <= score, College.cutoff_max >= score)
-    
-    colleges = query.all()
-    print(f"DEBUG: POST query returned {len(colleges)} colleges: {[c.name for c in colleges]}")
-    
-    suggestions = {
-        "college_name": [c.name for c in db.query(College.name).distinct().all()],
-        "state": [s.state for s in db.query(College.state).distinct().all()],
-        "location": [l.location for l in db.query(College.location).distinct().all()],
-        "branch": [b.branch for b in db.query(College.branch).distinct().all()]
-    }
-    
-    context = {
-        "request": request,
-        "results": colleges,
-        "suggestions": suggestions,
-        "error": f"No matching colleges found for state '{state}'" if not colleges and state else None,
-        "form_data": {
-            "course_level": course_level or "",
-            "state": state or "",
-            "location": location or "",
-            "college_name": college_name or "",
-            "branch": branch or "",
-            "fees": fees or "",
-            "score": score or 0 or ""
-        },
-        "seo": {
-            "title": f"Top {course_level or 'All'} Colleges in {state or 'India'} | Search Results",
-            "description": f"Find {course_level or 'all'} colleges in {state or 'India'}, various districts. Filter by fees, cutoff score, and branch.",
-            "keywords": f"{course_level or 'colleges'}, {state or 'India'}, districts, college search",
-            "og_title": f"Search {course_level or 'All'} Colleges in {state or 'India'}",
-            "og_description": f"Explore {course_level or 'all'} colleges in {state or 'India'} with filters for cutoff, fees, and more.",
-            "og_url": "https://collegefilter.onrender.com/",
-            "twitter_card": "summary_large_image"
-        },
-        "use_table": False
-    }
-    return templates.TemplateResponse("index.html", context)
+# Add HEAD support to fix 405 error
+@app.head("/")
+async def head_root():
+    return Response(status_code=200)
+
 @app.post("/", response_class=HTMLResponse)
 async def index_post(
     request: Request,
@@ -191,9 +159,9 @@ async def index_post(
     college_name: Optional[str] = Form(default=""),
     branch: Optional[str] = Form(default=""),
     fees: Optional[str] = Form(default=""),
-    score: Optional[str] = Form(default="")
+    score: Optional[str] = Form(default=""),
+    db: Session = Depends(get_db)
 ):
-    db = SessionLocal()
     try:
         # Validation
         if not course_level:
@@ -267,30 +235,13 @@ async def index_post(
                 "reviews": [{"review_text": r.review_text, "rating": r.rating} for r in reviews[:2]]
             })
 
-        # Generate autosuggestions based on exact matches
+        # Generate autosuggestions based on all colleges (improved for broader suggestions)
         all_colleges = db.query(College).all()
-        existing_college_names = [c.name for c in all_colleges]
-        existing_locations = [c.location for c in all_colleges if c.location]
-        existing_states = [c.state for c in all_colleges if c.state]
-        existing_branches = [c.branch for c in all_colleges if c.branch]
-
         suggestions = {
-            "college_name": sorted(
-                set(c.name for c in colleges if c.name and (not college_name or college_name == c.name)),
-                key=lambda x: x.lower()
-            ),
-            "location": sorted(
-                set(c.location for c in colleges if c.location and (not location or location == c.location)),
-                key=lambda x: x.lower()
-            ),
-            "state": sorted(
-                set(c.state for c in colleges if c.state and (not state or state == c.state)),
-                key=lambda x: x.lower()
-            ),
-            "branch": sorted(
-                set(c.branch for c in colleges if c.branch and (not branch or branch == c.branch)),
-                key=lambda x: x.lower()
-            )
+            "college_name": sorted([c.name for c in all_colleges], key=str.lower),
+            "location": sorted([c.location for c in all_colleges if c.location], key=str.lower),
+            "state": sorted(list(set(c.state for c in all_colleges if c.state)), key=str.lower),
+            "branch": sorted(list(set(c.branch for c in all_colleges if c.branch)), key=str.lower)
         }
         print(f"POST /: Generated suggestions: {suggestions}")
         if not any(suggestions.values()):
@@ -299,6 +250,10 @@ async def index_post(
         # Check for invalid inputs and provide specific error messages
         error_message = None
         if not results:
+            existing_states = [c.state for c in all_colleges if c.state]
+            existing_locations = [c.location for c in all_colleges if c.location]
+            existing_college_names = [c.name for c in all_colleges]
+            existing_branches = [c.branch for c in all_colleges if c.branch]
             if state and state not in existing_states:
                 error_message = f"Result fetching error: No matching colleges found for state '{state}'."
             elif location and location not in existing_locations:
@@ -354,7 +309,7 @@ async def index_post(
             "og_title": "Error - College Search",
             "og_description": "An error occurred while searching for colleges.",
             "og_url": str(request.url),
-            "twitter_card": "summary"
+            "twitter Nephew": "summary"
         }
         return templates.TemplateResponse(
             "index.html",
@@ -376,9 +331,8 @@ async def index_post(
                 "use_table": False
             }
         )
-    finally:
-        db.close()
 
+# Remaining endpoints updated to use Depends(get_db)
 @app.post("/api/search")
 async def search(
     course_level: str = Form(...),
@@ -387,9 +341,9 @@ async def search(
     college_name: Optional[str] = Form(default=""),
     branch: Optional[str] = Form(default=""),
     fees: Optional[str] = Form(default=""),
-    score: Optional[str] = Form(default="")
+    score: Optional[str] = Form(default=""),
+    db: Session = Depends(get_db)
 ):
-    db = SessionLocal()
     try:
         if not course_level:
             return {"error": "Course level is required"}, 400
@@ -461,39 +415,26 @@ async def search(
         # Generate autosuggestions
         all_colleges = db.query(College).all()
         suggestions = {
-            "college_name": sorted(
-                [c.name for c in all_colleges if not college_name or college_name == c.name],
-                key=str.lower
-            ),
-            "location": sorted(
-                [c.location for c in all_colleges if c.location and (not location or location == c.location)],
-                key=str.lower
-            ),
-            "state": sorted(
-                [c.state for c in all_colleges if c.state and (not state or state == c.state)],
-                key=str.lower
-            ),
-            "branch": sorted(
-                [c.branch for c in all_colleges if c.branch and (not branch or branch == c.branch)],
-                key=str.lower
-            )
+            "college_name": sorted([c.name for c in all_colleges], key=str.lower),
+            "location": sorted([c.location for c in all_colleges if c.location], key=str.lower),
+            "state": sorted(list(set(c.state for c in all_colleges if c.state)), key=str.lower),
+            "branch": sorted(list(set(c.branch for c in all_colleges if c.branch)), key=str.lower)
         }
 
+        print(f"POST /api/search: Found {len(results)} colleges, {len(suggestions)} suggestions")
         return {"results": results, "suggestions": suggestions}
 
     except Exception as e:
         print(f"❌ POST /api/search: Error: {e}")
         return {"error": "An error occurred while searching"}, 500
-    finally:
-        db.close()
 
 @app.post("/api/submit_review")
 async def submit_review(
     college_name: str = Form(...),
     review_text: str = Form(...),
-    rating: str = Form(...)
+    rating: str = Form(...),
+    db: Session = Depends(get_db)
 ):
-    db = SessionLocal()
     try:
         if not college_name or not review_text or not rating:
             return {"error": "College name, review text, and rating are required"}, 400
@@ -524,8 +465,6 @@ async def submit_review(
     except Exception as e:
         print(f"❌ Error submitting review: {e}")
         return {"error": f"Database error: {str(e)}"}, 500
-    finally:
-        db.close()
 
 @app.post("/add_college", response_class=HTMLResponse)
 async def add_college(
@@ -539,9 +478,9 @@ async def add_college(
     cutoff_min: float = Form(...),
     cutoff_max: float = Form(...),
     review_text: Optional[str] = Form(default=""),
-    rating: Optional[int] = Form(default=None)
+    rating: Optional[int] = Form(default=None),
+    db: Session = Depends(get_db)
 ):
-    db = SessionLocal()
     try:
         if not all([name, state, location, course_level, branch, fees, cutoff_min, cutoff_max]):
             raise HTTPException(status_code=400, detail="All fields except review and rating are required.")
@@ -604,8 +543,8 @@ async def add_college(
         suggestions = {
             "college_name": sorted([c.name for c in all_colleges], key=str.lower),
             "location": sorted([c.location for c in all_colleges if c.location], key=str.lower),
-            "state": sorted([c.state for c in all_colleges if c.state], key=str.lower),
-            "branch": sorted([c.branch for c in all_colleges if c.branch], key=str.lower)
+            "state": sorted(list(set(c.state for c in all_colleges if c.state)), key=str.lower),
+            "branch": sorted(list(set(c.branch for c in all_colleges if c.branch)), key=str.lower)
         }
 
         # SEO metadata
@@ -656,34 +595,51 @@ async def add_college(
                 "use_table": False
             }
         )
-    finally:
-        db.close()
 
 @app.get("/api/suggestions")
-async def get_suggestions():
-    db = SessionLocal()
+async def get_suggestions(db: Session = Depends(get_db)):
     try:
         colleges = db.query(College).all()
         suggestions = {
             "college_name": sorted([c.name for c in colleges], key=str.lower),
             "location": sorted([c.location for c in colleges if c.location], key=str.lower),
-            "state": sorted([c.state for c in colleges if c.state], key=str.lower),
-            "branch": sorted([c.branch for c in colleges if c.branch], key=str.lower)
+            "state": sorted(list(set(c.state for c in colleges if c.state)), key=str.lower),
+            "branch": sorted(list(set(c.branch for c in colleges if c.branch)), key=str.lower)
         }
         return suggestions
-    finally:
-        db.close()
+    except Exception as e:
+        print(f"❌ GET /api/suggestions: Error: {e}")
+        return {"college_name": [], "location": [], "state": [], "branch": []}
 
 @app.get("/health")
 async def health_check():
     return {"status": "healthy"}
 
 @app.get("/api/colleges")
-def list_colleges():
-    db = SessionLocal()
-    colleges = db.query(College).all()
-    db.close()
-    return colleges
+async def list_colleges(db: Session = Depends(get_db)):
+    try:
+        colleges = db.query(College).all()
+        results = []
+        for college in colleges:
+            reviews = db.query(Review).filter(Review.college_name == college.name).all()
+            avg_rating = sum(r.rating for r in reviews) / len(reviews) if reviews else 0
+            results.append({
+                "name": college.name,
+                "state": college.state,
+                "location": college.location,
+                "course_level": college.course_level,
+                "branch": college.branch,
+                "min_score": college.cutoff_min,
+                "max_score": college.cutoff_max,
+                "fees": college.fees,
+                "avg_rating": avg_rating,
+                "reviews": [{"review_text": r.review_text, "rating": r.rating} for r in reviews[:2]]
+            })
+        print(f"GET /api/colleges: Found {len(results)} colleges")
+        return results
+    except Exception as e:
+        print(f"❌ GET /api/colleges: Error: {e}")
+        raise HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")
 
 @app.get("/predict_colleges/")
 async def predict_colleges(score: int, db: Session = Depends(get_db)):
@@ -698,7 +654,7 @@ async def predict_colleges(score: int, db: Session = Depends(get_db)):
             College.cutoff_max >= score
         ).all()
 
-        # Format results to match other endpoints
+        # Format results
         results = []
         for college in colleges:
             reviews = db.query(Review).filter(Review.college_name == college.name).all()
@@ -754,7 +710,7 @@ async def get_results(score: int, db: Session = Depends(get_db)):
                 "reviews": [{"review_text": r.review_text, "rating": r.rating} for r in reviews[:2]]
             })
 
-        # Generate suggestions (all colleges for simplicity, could filter by proximity to score)
+        # Generate suggestions
         all_colleges = db.query(College).all()
         suggestions = [
             {
@@ -775,7 +731,3 @@ async def get_results(score: int, db: Session = Depends(get_db)):
     except Exception as e:
         print(f"❌ GET /api/results: Error: {e}")
         raise HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")
-
-if __name__ == "__main__":
-    initialize_database()
-
