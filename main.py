@@ -11,6 +11,9 @@ from initial_data import initialize_database
 
 # Initialize FastAPI app
 app = FastAPI()
+@app.on_event("startup")
+async def startup_event():
+    initialize_database()
 
 # Mount static files if directory exists
 if os.path.exists("static"):
@@ -712,3 +715,7 @@ async def get_results(score: int, db: Session = Depends(get_db)):
     except Exception as e:
         print(f"❌ GET /api/results: Error: {e}")
         raise HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")
+
+if __name__ == "__main__":
+    initialize_database()
+
