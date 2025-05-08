@@ -118,7 +118,70 @@ async def root(request: Request, db: Session = Depends(get_db)):
     }
     print(f"GET /: Context passed to template: {context}")
     return templates.TemplateResponse("index.html", context)
-
+@app.post("/")
+async def search_colleges(
+    request: Request,
+    course_level: str = None,
+    state: str = None,
+    location: str = None,
+    college_name: str = None,
+    branch: str = None,
+    fees: float = None,
+    score: float = None,
+    db: Session = Depends(get_db)
+):
+    query = db.query(College)
+    if course_level:
+        query = query.filter(College.course_level == course_level)
+    if state:
+        query = query.filter(College.state == state)
+    if location:
+        query = query.filter(College.location.ilike(f"%{location}%"))
+    if college_name:
+        query = query.filter(College.name.ilike(f"%{college_name}%"))
+    if branch:
+        query = query.filter(College.branch == branch)
+    if fees:
+        query = query.filter(College.fees <= fees)
+    if score:
+        query = query.filter(College.cutoff_min <= score, College.cutoff_max >= score)
+    
+    colleges = query.all()
+    print(f"DEBUG: POST query returned {len(colleges)} colleges: {[c.name for c in colleges]}")
+    
+    suggestions = {
+        "college_name": [c.name for c in db.query(College.name).distinct().all()],
+        "state": [s.state for s in db.query(College.state).distinct().all()],
+        "location": [l.location for l in db.query(College.location).distinct().all()],
+        "branch": [b.branch for b in db.query(College.branch).distinct().all()]
+    }
+    
+    context = {
+        "request": request,
+        "results": colleges,
+        "suggestions": suggestions,
+        "error": f"No matching colleges found for state '{state}'" if not colleges and state else None,
+        "form_data": {
+            "course_level": course_level or "",
+            "state": state or "",
+            "location": location or "",
+            "college_name": college_name or "",
+            "branch": branch or "",
+            "fees": fees or "",
+            "score": score or 0 or ""
+        },
+        "seo": {
+            "title": f"Top {course_level or 'All'} Colleges in {state or 'India'} | Search Results",
+            "description": f"Find {course_level or 'all'} colleges in {state or 'India'}, various districts. Filter by fees, cutoff score, and branch.",
+            "keywords": f"{course_level or 'colleges'}, {state or 'India'}, districts, college search",
+            "og_title": f"Search {course_level or 'All'} Colleges in {state or 'India'}",
+            "og_description": f"Explore {course_level or 'all'} colleges in {state or 'India'} with filters for cutoff, fees, and more.",
+            "og_url": "https://collegefilter.onrender.com/",
+            "twitter_card": "summary_large_image"
+        },
+        "use_table": False
+    }
+    return templates.TemplateResponse("index.html", context)
 @app.post("/", response_class=HTMLResponse)
 async def index_post(
     request: Request,
