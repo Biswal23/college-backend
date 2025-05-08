@@ -62,11 +62,9 @@ def get_db():
 
 @app.get("/")
 async def root(request: Request, db: Session = Depends(get_db)):
-    # Fetch all colleges
     colleges = db.query(College).all()
-    print(f"DEBUG: Found {len(colleges)} colleges: {[c.name for c in colleges]}")  # Debug log
+    print(f"DEBUG: Found {len(colleges)} colleges: {[c.name for c in colleges]}")
     
-    # Generate suggestions
     suggestions = {
         "college_name": [c.name for c in db.query(College.name).distinct().all()],
         "state": [s.state for s in db.query(College.state).distinct().all()],
@@ -74,7 +72,6 @@ async def root(request: Request, db: Session = Depends(get_db)):
         "branch": [b.branch for b in db.query(College.branch).distinct().all()]
     }
     
-    # Prepare context for template
     context = {
         "request": request,
         "results": colleges,
@@ -84,7 +81,7 @@ async def root(request: Request, db: Session = Depends(get_db)):
         "seo": {
             "title": "Find Top Colleges in India | BTech, Diploma, Degree",
             "description": "Discover top colleges in Delhi, Gujarat, Karnataka and more for BTech, Diploma, and Degree courses. Filter by state, district, fees, and cutoff scores.",
-            "keywords": "colleges in India, Delhi, Gujarat, Karnataka, Madhya Pradesh, Maharashtra, Rajasthan, Tamil Nadu, Telangana, West Bengal, Ahmedabad, Bangalore, Bhopal, Chennai, Hyderabad, BTech colleges, Diploma colleges, Degree colleges",
+            "keywords": ", ".join([s for s in suggestions.state + suggestions.location + ["BTech colleges", "Diploma colleges", "Degree colleges"] if s]),
             "og_title": "Best Colleges in India - Find Your Perfect Institute",
             "og_description": "Explore colleges in Delhi, Gujarat and other states with detailed reviews and filters.",
             "og_url": "https://collegefilter.onrender.com/",
