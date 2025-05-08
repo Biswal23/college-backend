@@ -1,5 +1,5 @@
 from database import SessionLocal, engine, Base
-from models import College, Review, Base
+from models import College, Review
 from sqlalchemy.exc import IntegrityError, OperationalError
 
 def initialize_database():
@@ -31,7 +31,8 @@ def initialize_database():
                 course_level="BTech",
                 branch="Computer Science",
                 fees=150000,
-                cutoff=1200
+                cutoff_min=1200,
+                cutoff_max=1800
             ),
             College(
                 name="Engineering College Pune",
@@ -40,7 +41,8 @@ def initialize_database():
                 course_level="BTech",
                 branch="Mechanical Engineering",
                 fees=120000,
-                cutoff=1100
+                cutoff_min=1100,
+                cutoff_max=1800
             ),
             College(
                 name="Science College Bangalore",
@@ -49,7 +51,8 @@ def initialize_database():
                 course_level="Degree",
                 branch="Science",
                 fees=80000,
-                cutoff=900
+                cutoff_min=900,
+                cutoff_max=1900
             ),
             College(
                 name="Commerce Institute Chennai",
@@ -58,7 +61,8 @@ def initialize_database():
                 course_level="Degree",
                 branch="Commerce",
                 fees=90000,
-                cutoff=850
+                cutoff_min=850,
+                cutoff_max=1550
             ),
             College(
                 name="Polytechnic Institute Delhi",
@@ -67,7 +71,8 @@ def initialize_database():
                 course_level="Diploma",
                 branch="Civil Engineering",
                 fees=60000,
-                cutoff=700
+                cutoff_min=700,
+                cutoff_max=1700
             ),
             College(
                 name="Tech Institute Hyderabad",
@@ -76,7 +81,8 @@ def initialize_database():
                 course_level="BTech",
                 branch="Electronics and Telecommunication",
                 fees=140000,
-                cutoff=1150
+                cutoff_min=1150,
+                cutoff_max=1950
             ),
             College(
                 name="Arts College Kolkata",
@@ -85,7 +91,8 @@ def initialize_database():
                 course_level="Degree",
                 branch="Arts",
                 fees=70000,
-                cutoff=800
+                cutoff_min=800,
+                cutoff_max=1800
             ),
             College(
                 name="Engineering Academy Jaipur",
@@ -94,7 +101,8 @@ def initialize_database():
                 course_level="BTech",
                 branch="Computer Science",
                 fees=130000,
-                cutoff=1250
+                cutoff_min=1250,
+                cutoff_max=1950
             ),
             College(
                 name="Diploma College Ahmedabad",
@@ -103,7 +111,8 @@ def initialize_database():
                 course_level="Diploma",
                 branch="Mechanical Engineering",
                 fees=65000,
-                cutoff=750
+                cutoff_min=750,
+                cutoff_max=1750
             ),
             College(
                 name="Science Academy Bhopal",
@@ -112,13 +121,15 @@ def initialize_database():
                 course_level="Degree",
                 branch="Science",
                 fees=85000,
-                cutoff=950
+                cutoff_min=950,
+                cutoff_max=1950
             ),
         ]
 
         # Add colleges to database
         for college in colleges:
             db.add(college)
+            print(f"Added college: {college.name}")
 
         # Sample reviews
         reviews = [
@@ -177,6 +188,7 @@ def initialize_database():
         # Add reviews to database
         for review in reviews:
             db.add(review)
+            print(f"Added review for: {review.college_name}")
 
         # Commit changes
         db.commit()
