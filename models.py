@@ -1,10 +1,12 @@
-from sqlalchemy import Column, Integer, String, Float
+from sqlalchemy import Column, Integer, String, Float, UniqueConstraint
 from database import Base
+
+
 
 class College(Base):
     __tablename__ = "colleges"
-    id = Column(Integer, primary_key=True)
-    name = Column(String, nullable=False)
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, index=True)
     state = Column(String)
     location = Column(String)
     course_level = Column(String)
@@ -13,6 +15,10 @@ class College(Base):
     cutoff_min = Column(Float)
     cutoff_max = Column(Float)
 
+    # Add unique constraint
+    __table_args__ = (
+        UniqueConstraint('name', 'state', 'location', 'course_level', 'branch', name='unique_college'),
+    )
 class Review(Base):
     __tablename__ = "reviews"
     id = Column(Integer, primary_key=True)
