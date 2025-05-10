@@ -174,7 +174,7 @@ def initialize_database():
                 cutoff_min=288459,
                 cutoff_max=1101052
             ),
-            College(','College(
+            College(
                 name="Government College of Engineering",
                 state="Odisha",
                 location="Keonjhar",
@@ -2524,8 +2524,615 @@ def initialize_database():
                 cutoff_min=1102022,
                 cutoff_max=1103329
             ),
+            # Sample colleges
+        
             College(
                 name="Shibani Institute of Technical Education",
                 state="Odisha",
                 location="Bhubaneswar",
-                course_level
+                course_level="Btech",
+                branch="Electrical Engineering",
+                fees=144000,
+                cutoff_min=1102022,
+                cutoff_max=1103329
+            ),
+            College(
+                name="Shibani Institute of Technical Education",
+                state="Odisha",
+                location="Bhubaneswar",
+                course_level="Btech",
+                branch="Mechanical Engineering",
+                fees=144000,
+                cutoff_min=1103868,
+                cutoff_max=1105100
+            ),
+            College(
+                name="Silicon Institute of Technology",
+                state="Odisha",
+                location="Bhubaneswar",
+                course_level="Btech",
+                branch="Computer Engineering",
+                fees=144000,
+                cutoff_min=280843,
+                cutoff_max=874209
+            ),
+            College(
+                name="Silicon Institute of Technology",
+                state="Odisha",
+                location="Bhubaneswar",
+                course_level="Btech",
+                branch="COMPUTER SCIENCE & TECHNOLOGY",
+                fees=144000,
+                cutoff_min=230983,
+                cutoff_max=589120
+            ),
+            College(
+                name="Silicon Institute of Technology",
+                state="Odisha",
+                location="Bhubaneswar",
+                course_level="Btech",
+                branch="Computer Science and Engineering",
+                fees=144000,
+                cutoff_min=124702,
+                cutoff_max=317193
+            ),
+            College(
+                name="Silicon Institute of Technology",
+                state="Odisha",
+                location="Bhubaneswar",
+                course_level="Btech",
+                branch="Electrical and Electronics Engineering",
+                fees=144000,
+                cutoff_min=365270,
+                cutoff_max=1100506
+            ),
+            College(
+                name="Silicon Institute of Technology",
+                state="Odisha",
+                location="Bhubaneswar",
+                course_level="Btech",
+                branch="Electronics & Communication Engineering",
+                fees=144000,
+                cutoff_min=263422,
+                cutoff_max=1105150
+            ),
+            College(
+                name="Silicon Institute of Technology",
+                state="Odisha",
+                location="Bhubaneswar",
+                course_level="Btech",
+                branch="Electronics & Instrumentation Engineering",
+                fees=144000,
+                cutoff_min=864022,
+                cutoff_max=864022
+            ),
+            College(
+                name="Sophitorium Engineering College",
+                state="Odisha",
+                location="Bhubaneswar",
+                course_level="Btech",
+                branch="Civil Engineering",
+                fees=144000,
+                cutoff_min=1100092,
+                cutoff_max=1106528
+            ),
+            College(
+                name="Sophitorium Engineering College",
+                state="Odisha",
+                location="Bhubaneswar",
+                course_level="Btech",
+                branch="Computer Science and Engineering",
+                fees=144000,
+                cutoff_min=1103224,
+                cutoff_max=1106081
+            ),
+            College(
+                name="Sophitorium Engineering College",
+                state="Odisha",
+                location="Bhubaneswar",
+                course_level="Btech",
+                branch="Electrical Engineering",
+                fees=144000,
+                cutoff_min=1103193,
+                cutoff_max=1106276
+            ),
+            College(
+                name="Sophitorium Engineering College",
+                state="Odisha",
+                location="Bhubaneswar",
+                course_level="Btech",
+                branch="Electronics & Communication Engineering",
+                fees=144000,
+                cutoff_min=1100904,
+                cutoff_max=1100904
+            ),
+            College(
+                name="Sophitorium Engineering College",
+                state="Odisha",
+                location="Bhubaneswar",
+                course_level="Btech",
+                branch="Mechanical Engineering",
+                fees=144000,
+                cutoff_min=1100099,
+                cutoff_max=1106603
+            ),
+            College(
+                name="Spintronic Technology and Advance Research",
+                state="Odisha",
+                location="Bhubaneswar",
+                course_level="Btech",
+                branch="Civil Engineering",
+                fees=144000,
+                cutoff_min=1105658,
+                cutoff_max=1105658
+            ),
+            College(
+                name="Spintronic Technology and Advance Research",
+                state="Odisha",
+                location="Bhubaneswar",
+                course_level="Btech",
+                branch="Computer Science and Engineering",
+                fees=144000,
+                cutoff_min=1104528,
+                cutoff_max=1106515
+            ),
+            College(
+                name="Spintronic Technology and Advance Research",
+                state="Odisha",
+                location="Bhubaneswar",
+                course_level="Btech",
+                branch="Mechanical Engineering",
+                fees=144000,
+                cutoff_min=540269,
+                cutoff_max=1105859
+            ),
+            College(
+                name="Srinix College of Engineering",
+                state="Odisha",
+                location="Balasore",
+                course_level="Btech",
+                branch="Civil Engineering",
+                fees=144000,
+                cutoff_min=1106362,
+                cutoff_max=1106362
+            ),
+            College(
+                name="Srinix College of Engineering",
+                state="Odisha",
+                location="Balasore",
+                course_level="Btech",
+                branch="Computer Science and Engineering",
+                fees=144000,
+                cutoff_min=640142,
+                cutoff_max=1106605
+            ),
+            College(
+                name="Srinix College of Engineering",
+                state="Odisha",
+                location="Balasore",
+                course_level="Btech",
+                branch="Electrical and Electronics Engineering",
+                fees=144000,
+                cutoff_min=1103377,
+                cutoff_max=1104772
+            ),
+            College(
+                name="Srinix College of Engineering",
+                state="Odisha",
+                location="Balasore",
+                course_level="Btech",
+                branch="Electrical Engineering",
+                fees=144000,
+                cutoff_min=1100485,
+                cutoff_max=1106417
+            ),
+            College(
+                name="Srinix College of Engineering",
+                state="Odisha",
+                location="Balasore",
+                course_level="Btech",
+                branch="Mechanical Engineering",
+                fees=144000,
+                cutoff_min=1101220,
+                cutoff_max=1106536
+            ),
+            College(
+                name="Suddhananda Engineering and Research Centre",
+                state="Odisha",
+                location="Bhubaneswar",
+                course_level="Btech",
+                branch="Civil Engineering",
+                fees=144000,
+                cutoff_min=1104132,
+                cutoff_max=1104132
+            ),
+            College(
+                name="Suddhananda Engineering and Research Centre",
+                state="Odisha",
+                location="Bhubaneswar",
+                course_level="Btech",
+                branch="Electrical Engineering",
+                fees=144000,
+                cutoff_min=1101546,
+                cutoff_max=1102714
+            ),
+            College(
+                name="Suddhananda Engineering and Research Centre",
+                state="Odisha",
+                location="Bhubaneswar",
+                course_level="Btech",
+                branch="Mechanical Engineering",
+                fees=144000,
+                cutoff_min=1104103,
+                cutoff_max=1105488
+            ),
+            College(
+                name="Sundergarh Engineering College",
+                state="Odisha",
+                location="Sundergarh",
+                course_level="Btech",
+                branch="Computer Science and Engineering",
+                fees=144000,
+                cutoff_min=1105431,
+                cutoff_max=1105431
+            ),
+            College(
+                name="Sundergarh Engineering College",
+                state="Odisha",
+                location="Sundergarh",
+                course_level="Btech",
+                branch="Electrical Engineering",
+                fees=144000,
+                cutoff_min=1100247,
+                cutoff_max=1100247
+            ),
+            College(
+                name="Sundergarh Engineering College",
+                state="Odisha",
+                location="Sundergarh",
+                course_level="Btech",
+                branch="Mechanical Engineering",
+                fees=144000,
+                cutoff_min=1105774,
+                cutoff_max=1105774
+            ),
+            College(
+                name="Synergy Institute of Engineering and Technology",
+                state="Odisha",
+                location="Dhenkanal",
+                course_level="Btech",
+                branch="Computer Science and Engineering",
+                fees=144000,
+                cutoff_min=555708,
+                cutoff_max=1012973
+            ),
+            College(
+                name="Synergy Institute of Technology",
+                state="Odisha",
+                location="Bhubaneswar",
+                course_level="Btech",
+                branch="Computer Science and Engineering",
+                fees=144000,
+                cutoff_min=552036,
+                cutoff_max=990156
+            ),
+            College(
+                name="Synergy Institute of Technology",
+                state="Odisha",
+                location="Bhubaneswar",
+                course_level="Btech",
+                branch="Electrical Engineering",
+                fees=144000,
+                cutoff_min=1103333,
+                cutoff_max=1103333
+            ),
+            College(
+                name="Temple City Institute of Technology and Engineering",
+                state="Odisha",
+                location="Bhubaneswar",
+                course_level="Btech",
+                branch="Civil Engineering",
+                fees=144000,
+                cutoff_min=1105691,
+                cutoff_max=1105918
+            ),
+            College(
+                name="Temple City Institute of Technology and Engineering",
+                state="Odisha",
+                location="Bhubaneswar",
+                course_level="Btech",
+                branch="Computer Science and Engineering",
+                fees=144000,
+                cutoff_min=895040,
+                cutoff_max=1106031
+            ),
+            College(
+                name="Temple City Institute of Technology and Engineering",
+                state="Odisha",
+                location="Bhubaneswar",
+                course_level="Btech",
+                branch="Electrical Engineering",
+                fees=144000,
+                cutoff_min=1103623,
+                cutoff_max=1106569
+            ),
+            College(
+                name="Temple City Institute of Technology and Engineering",
+                state="Odisha",
+                location="Bhubaneswar",
+                course_level="Btech",
+                branch="Electronics & Communication Engineering",
+                fees=144000,
+                cutoff_min=1105993,
+                cutoff_max=1105993
+            ),
+            College(
+                name="Temple City Institute of Technology and Engineering",
+                state="Odisha",
+                location="Bhubaneswar",
+                course_level="Btech",
+                branch="Mechanical Engineering",
+                fees=144000,
+                cutoff_min=1102008,
+                cutoff_max=1102124
+            ),
+            College(
+                name="Trident Academy of Technology",
+                state="Odisha",
+                location="Bhubaneswar",
+                course_level="Btech",
+                branch="Civil Engineering",
+                fees=144000,
+                cutoff_min=1014263,
+                cutoff_max=1014263
+            ),
+            College(
+                name="Trident Academy of Technology",
+                state="Odisha",
+                location="Bhubaneswar",
+                course_level="Btech",
+                branch="COMPUTER SCIENCE & TECHNOLOGY",
+                fees=144000,
+                cutoff_min=644873,
+                cutoff_max=1102697
+            ),
+            College(
+                name="Trident Academy of Technology",
+                state="Odisha",
+                location="Bhubaneswar",
+                course_level="Btech",
+                branch="Computer Science and Engineering",
+                fees=144000,
+                cutoff_min=354160,
+                cutoff_max=1105578
+            ),
+            College(
+                name="Trident Academy of Technology",
+                state="Odisha",
+                location="Bhubaneswar",
+                course_level="Btech",
+                branch="Computer Science and Information Technology",
+                fees=144000,
+                cutoff_min=789912,
+                cutoff_max=1103421
+            ),
+            College(
+                name="Trident Academy of Technology",
+                state="Odisha",
+                location="Bhubaneswar",
+                course_level="Btech",
+                branch="Computer Science Engineering (Artificial Intelligence and Machine Learning)",
+                fees=144000,
+                cutoff_min=560710,
+                cutoff_max=989896
+            ),
+            College(
+                name="Trident Academy of Technology",
+                state="Odisha",
+                location="Bhubaneswar",
+                course_level="Btech",
+                branch="Electrical Engineering",
+                fees=144000,
+                cutoff_min=979452,
+                cutoff_max=979452
+            ),
+            College(
+                name="Trident Academy of Technology",
+                state="Odisha",
+                location="Bhubaneswar",
+                course_level="Btech",
+                branch="Electronics & Telecommunication Engineering",
+                fees=144000,
+                cutoff_min=428973,
+                cutoff_max=1102633
+            ),
+            College(
+                name="Trident Academy of Technology",
+                state="Odisha",
+                location="Bhubaneswar",
+                course_level="Btech",
+                branch="Mechanical Engineering",
+                fees=144000,
+                cutoff_min=810649,
+                cutoff_max=810649
+            ),
+            College(
+                name="Vedang Institute of Technology",
+                state="Odisha",
+                location="Khurda",
+                course_level="Btech",
+                branch="Metallurgical Engineering",
+                fees=144000,
+                cutoff_min=1106137,
+                cutoff_max=1106137
+            ),
+            College(
+                name="Vignan Institute of Technology and Management",
+                state="Odisha",
+                location="Berhampur",
+                course_level="Btech",
+                branch="Computer Science and Engineering",
+                fees=144000,
+                cutoff_min=524103,
+                cutoff_max=1105788
+            ),
+            College(
+                name="Vignan Institute of Technology and Management",
+                state="Odisha",
+                location="Berhampur",
+                course_level="Btech",
+                branch="Electrical and Electronics Engineering",
+                fees=144000,
+                cutoff_min=1100233,
+                cutoff_max=1104762
+            ),
+            College(
+                name="Vignan Institute of Technology and Management",
+                state="Odisha",
+                location="Berhampur",
+                course_level="Btech",
+                branch="Electronics & Telecommunication Engineering",
+                fees=144000,
+                cutoff_min=1103928,
+                cutoff_max=1103928
+            ),
+            College(
+                name="Vignan Institute of Technology and Management",
+                state="Odisha",
+                location="Berhampur",
+                course_level="Btech",
+                branch="Mechanical Engineering",
+                fees=144000,
+                cutoff_min=1101627,
+                cutoff_max=1105341
+            ),
+            College(
+                name="Vijayanjali Institute of Technology",
+                state="Odisha",
+                location="Balasore",
+                course_level="Btech",
+                branch="Civil Engineering",
+                fees=144000,
+                cutoff_min=845810,
+                cutoff_max=850395
+            ),
+            College(
+                name="Vijayanjali Institute of Technology",
+                state="Odisha",
+                location="Balasore",
+                course_level="Btech",
+                branch="Electrical and Electronics Engineering",
+                fees=144000,
+                cutoff_min=362054,
+                cutoff_max=1103595
+            ),
+            College(
+                name="Vijayanjali Institute of Technology",
+                state="Odisha",
+                location="Balasore",
+                course_level="Btech",
+                branch="Mechanical Engineering",
+                fees=144000,
+                cutoff_min=723103,
+                cutoff_max=1100646
+            ),
+            College(
+                name="Vikash Institute of Technology",
+                state="Odisha",
+                location="BARGARH",
+                course_level="Btech",
+                branch="Civil Engineering",
+                fees=144000,
+                cutoff_min=838739,
+                cutoff_max=838739
+            ),
+            College(
+                name="Vikash Institute of Technology",
+                state="Odisha",
+                location="BARGARH",
+                course_level="Btech",
+                branch="Computer Science and Engineering",
+                fees=144000,
+                cutoff_min=869692,
+                cutoff_max=1105677
+            ),
+            College(
+                name="Vikash Institute of Technology",
+                state="Odisha",
+                location="BARGARH",
+                course_level="Btech",
+                branch="Electrical and Electronics Engineering",
+                fees=144000,
+                cutoff_min=1102080,
+                cutoff_max=1103932
+            ),
+            College(
+                name="Vikash Institute of Technology",
+                state="Odisha",
+                location="BARGARH",
+                course_level="Btech",
+                branch="Integrated MSc in Applied Chemistry",
+                fees=144000,
+                cutoff_min=230359,
+                cutoff_max=230359
+            ),
+            College(
+                name="Vikash Institute of Technology",
+                state="Odisha",
+                location="BARGARH",
+                course_level="Btech",
+                branch="Integrated MSc in Applied Physics",
+                fees=144000,
+                cutoff_min=634537,
+                cutoff_max=1006554
+            ),
+            College(
+                name="Vikash Institute of Technology",
+                state="Odisha",
+                location="BARGARH",
+                course_level="Btech",
+                branch="Integrated MSc in Mathematics and Computing",
+                fees=144000,
+                cutoff_min=440803,
+                cutoff_max=440803
+            ),
+            College(
+                name="Vikash Institute of Technology",
+                state="Odisha",
+                location="BARGARH",
+                course_level="Btech",
+                branch="Mechanical Engineering",
+                fees=144000,
+                cutoff_min=214917,
+                cutoff_max=214917
+            ),
+            College(
+                name="VITS Engineering College",
+                state="Odisha",
+                location="Khurda",
+                course_level="Btech",
+                branch="Mechanical Engineering",
+                fees=144000,
+                cutoff_min=1104015,
+                cutoff_max=1104015
+            )
+        ]
+
+        # Add colleges to the session
+        db.add_all(colleges)
+        db.commit()
+        print("✅ Sample colleges added successfully")
+    except IntegrityError as e:
+        db.rollback()
+        print(f"❌ IntegrityError: {e}")
+    except OperationalError as e:
+        db.rollback()
+        print(f"❌ OperationalError: {e}")
+    except Exception as e:
+        db.rollback()
+        print(f"❌ Error adding colleges: {e}")
+    finally:
+        db.close()
+
+if __name__ == "__main__":
+    initialize_database()
