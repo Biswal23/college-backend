@@ -6,6 +6,7 @@ from database import SessionLocal, engine, Base
 from models import College, Review
 from typing import Optional
 from sqlalchemy.orm import Session
+from sqlalchemy.sql import text
 import os
 from initial_data import initialize_database
 import logging
@@ -48,7 +49,7 @@ def get_deduplicated_colleges(query, db: Session):
     seen = set()
     deduplicated = []
     for college in colleges:
-        key = (college.name, college.state, college.location, college.course_level, college.branch)
+        key = (college.name, college.state, college.location, college.course_level, getattr(college, 'branch', None))
         if key not in seen:
             seen.add(key)
             deduplicated.append(college)
@@ -64,7 +65,7 @@ def format_college_results(colleges, db: Session):
             "state": college.state,
             "location": college.location,
             "course_level": college.course_level,
-            "branch": college.branch,
+            "branch": getattr(college, 'branch', None),
             "min_score": college.cutoff_min,
             "max_score": college.cutoff_max,
             "fees": college.fees,
@@ -78,7 +79,7 @@ def clean_duplicates(db: Session):
         colleges = db.query(College).all()
         seen = set()
         for college in colleges:
-            key = (college.name, college.state, college.location, college.course_level, college.branch)
+            key = (college.name, college.state, college.location, college.course_level, getattr(college, 'branch', None))
             if key in seen:
                 db.delete(college)
             else:
@@ -95,7 +96,8 @@ def normalize_case(db: Session):
             college.name = college.name.title()
             college.state = college.state.title() if college.state else college.state
             college.location = college.location.title() if college.location else college.location
-            college.branch = college.branch.title() if college.branch else college.branch
+            if hasattr(college, 'branch') and college.branch:
+                college.branch = college.branch.title()
         db.commit()
         logger.info("✅ Normalized case in database")
     except Exception as e:
@@ -107,7 +109,7 @@ def update_suggestions(db: Session):
         "college_name": sorted([c.name for c in colleges], key=lambda x: x.lower()),
         "location": sorted([c.location for c in colleges if c.location], key=lambda x: x.lower()),
         "state": sorted(list(set(c.state for c in colleges if c.state)), key=lambda x: x.lower()),
-        "branch": sorted(list(set(c.branch for c in colleges if c.branch)), key=lambda x: x.lower())
+        "branch": sorted(list(set(getattr(c, 'branch', None) for c in colleges if getattr(c, 'branch', None))), key=lambda x: x.lower() if x else '')
     }
     logger.info(f"✅ Updated suggestions: {app.state.suggestions}")
 
@@ -120,12 +122,13 @@ async def startup_event():
         logger.info("✅ Database tables created successfully")
         db = SessionLocal()
         try:
+            # Verify schema
+            db.execute(text("SELECT cutoff_min, cutoff_max FROM colleges LIMIT 1"))
+            logger.info("✅ Schema verified: 'cutoff_min' and 'cutoff_max' columns exist")
             clean_duplicates(db)
             normalize_case(db)
-            db.execute("SELECT cutoff_min, cutoff_max FROM colleges LIMIT 1")
-            logger.info("✅ Schema verified: 'cutoff_min' and 'cutoff_max' columns exist")
         except Exception as e:
-            logger.error(f"❌ Schema verification failed: {e}")
+            logger.error(f"❌ Schema verification or cleanup failed: {e}")
         try:
             initialize_database()
             logger.info("✅ Database initialization attempted")
@@ -473,7 +476,7 @@ async def add_college(
             raise HTTPException(status_code=400, detail=f"Course level must be one of {allowed_course_levels}.")
 
         allowed_branches = {
-            "BTech": ["Mechanical Engineering", "Computer Science", "Civil Engineering", "Electronics and Telecommunication"],
+            "BTech": ["Mechanical Engineering", "Computer Science", "Civil Engineering", "Electronics and Telecommunication", "Electrical Engineering"],
             "Diploma": ["Mechanical Engineering", "Computer Science", "Civil Engineering", "Electronics and Telecommunication"],
             "Degree": ["Science", "Commerce", "Arts"]
         }
@@ -497,8 +500,14 @@ async def add_college(
         location = location.strip().title()
         branch = branch.strip().title()
 
-        if db.query(College).filter(College.name.ilike(name)).first():
-            raise HTTPException(status_code=400, detail="College with this name already exists.")
+        if db.query(College).filter(
+            College.name.ilike(name),
+            College.state.ilike(state),
+            College.location.ilike(location),
+            College.course_level.ilike(course_level),
+            College.branch.ilike(branch)
+        ).first():
+            raise HTTPException(status_code=400, detail="College with these details already exists.")
 
         new_college = College(
             name=name,
@@ -630,7 +639,7 @@ async def get_results(score: int, db: Session = Depends(get_db)):
                 "state": c.state,
                 "location": c.location,
                 "course_level": c.course_level,
-                "branch": c.branch,
+                "branch": getattr(c, 'branch', None),
                 "min_score": c.cutoff_min,
                 "max_score": c.cutoff_max,
                 "fees": c.fees
@@ -641,6 +650,5 @@ async def get_results(score: int, db: Session = Depends(get_db)):
     except Exception as e:
         logger.error(f"❌ GET /api/results: Error: {e}")
         raise HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")
-
-if __name__ == "__main__":
+    if __name__ == "__main__":
     initialize_database()
