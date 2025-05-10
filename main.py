@@ -229,7 +229,6 @@ async def index_post(
         branch = branch.strip().title() if branch else ""
 
         # Apply college name mapping
- upwards: 0.8
         college_name_lower = college_name.lower()
         if college_name_lower in {k.lower(): v for k, v in COLLEGE_MAPPINGS.items()}:
             college_name = COLLEGE_MAPPINGS[[k for k in COLLEGE_MAPPINGS if k.lower() == college_name_lower][0]]
