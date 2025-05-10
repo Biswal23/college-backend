@@ -641,3 +641,6 @@ async def get_results(score: int, db: Session = Depends(get_db)):
     except Exception as e:
         logger.error(f"❌ GET /api/results: Error: {e}")
         raise HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")
+
+if __name__ == "__main__":
+    initialize_database()
