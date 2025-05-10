@@ -115,6 +115,7 @@ def update_suggestions(db: Session):
 @app.on_event("startup")
 async def startup_event():
     try:
+        logger.info("Starting database setup")
         Base.metadata.create_all(bind=engine)
         logger.info("✅ Database tables created successfully")
         db = SessionLocal()
@@ -125,15 +126,19 @@ async def startup_event():
             logger.info("✅ Schema verified: 'cutoff_min' and 'cutoff_max' columns exist")
         except Exception as e:
             logger.error(f"❌ Schema verification failed: {e}")
-        finally:
-            db.close()
-        initialize_database()
-        db = SessionLocal()
+        try:
+            initialize_database()
+            logger.info("✅ Database initialization attempted")
+        except Exception as e:
+            logger.error(f"❌ Database initialization failed: {e}")
         try:
             update_suggestions(db)
+            logger.info("✅ Suggestions updated")
+        except Exception as e:
+            logger.error(f"❌ Suggestions update failed: {e}")
         finally:
             db.close()
-        logger.info("✅ Database initialization completed")
+        logger.info("✅ Startup completed")
     except Exception as e:
         logger.error(f"❌ Error during startup: {e}")
 
@@ -169,7 +174,7 @@ async def index(request: Request, db: Session = Depends(get_db)):
             "request": request,
             "results": results,
             "suggestions": suggestions,
-            "error": "No colleges found in database!" if not colleges else None,
+            "error": "No colleges found in database! Please contact support." if not colleges else None,
             "form_data": {},
             "seo": seo_metadata,
             "use_table": len(results) > 5
